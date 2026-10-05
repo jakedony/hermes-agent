@@ -92,8 +92,9 @@ type Process struct {
 	stdin   io.WriteCloser
 	writeMu sync.Mutex
 
-	results chan Result
-	exited  chan struct{}
+	results    chan Result
+	exited     chan struct{}
+	readerDone chan struct{}
 
 	mu       sync.Mutex
 	protoErr error
@@ -136,7 +137,8 @@ func Start(ctx context.Context, spec Spec, extraArgs ...string) (*Process, Ready
 	outW.Close()
 	errW.Close()
 
-	p := &Process{spec: spec, cmd: cmd, stdin: stdin, results: make(chan Result, 1), exited: make(chan struct{})}
+	p := &Process{spec: spec, cmd: cmd, stdin: stdin, results: make(chan Result, 1),
+		exited: make(chan struct{}), readerDone: make(chan struct{})}
 	readyCh := make(chan record, 1)
 	go p.readStdout(outR, readyCh)
 	go p.drainStderr(errR)
@@ -267,8 +269,14 @@ func (p *Process) send(v any) error {
 
 func (p *Process) wait() {
 	err := p.cmd.Wait()
-	// Reap stragglers the worker may have spawned into its group.
+	// Reap stragglers the worker may have spawned into its group; that also closes their copies of
+	// stdout, so the reader reaches EOF and can classify a trailing partial record before exit is
+	// reported.
 	killGroup(p.cmd)
+	select {
+	case <-p.readerDone:
+	case <-time.After(2 * time.Second):
+	}
 	p.mu.Lock()
 	p.exitErr = err
 	p.mu.Unlock()
@@ -317,6 +325,7 @@ func (p *Process) setProtoErr(err error) {
 // readStdout parses protocol records. Any malformed, oversized or incomplete record is a protocol
 // violation: the worker is killed rather than resynchronised.
 func (p *Process) readStdout(r io.ReadCloser, readyCh chan<- record) {
+	defer close(p.readerDone)
 	defer r.Close()
 	br := bufio.NewReaderSize(r, 64<<10)
 	gotReady := false

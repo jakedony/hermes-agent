@@ -19,11 +19,11 @@ Run it with the interpreter the installed ``hermes`` command uses::
 
 import argparse
 import json
+import logging
 import os
 import sys
 import threading
 import time
-import traceback
 import uuid
 
 WORKER_PROTOCOL_VERSION = 1
@@ -36,6 +36,8 @@ EXIT_PROTOCOL = 5
 # An empty enabled_toolsets list resolves to zero tools in the installed
 # Hermes (verified: the model request carries no tool schemas).
 TOOL_POLICY: list[str] = []
+
+logger = logging.getLogger("hermes_bridge.worker")
 
 
 def _claim_stdout():
@@ -84,10 +86,9 @@ def _hermes_version():
     try:
         from hermes_cli import __release_date__
         from hermes_cli.version_info import get_version_info
-
-        return f"{get_version_info().derived_version} ({__release_date__})"
-    except Exception:
+    except ImportError:
         return "unknown"
+    return f"{get_version_info().derived_version} ({__release_date__})"
 
 
 def build_agent(args):
@@ -131,8 +132,10 @@ class Conversation:
                      "message": "The worker is already running a request."}
                 )
                 return
+            from agent.memory_provider import spawn_context_thread
+
             self._active_request = request_id
-            self._thread = threading.Thread(target=self._run, args=(request_id, message), daemon=True)
+            self._thread = spawn_context_thread(self._run, name="bridge-turn", args=(request_id, message))
             self._thread.start()
 
     def cancel(self, request_id):
@@ -153,8 +156,8 @@ class Conversation:
             result = self.agent.run_conversation(
                 message, conversation_history=list(self.history), task_id=self.task_id
             )
-        except Exception as exc:
-            _diag("turn_exception", requestId=request_id, exception=type(exc).__name__)
+        except Exception as exc:  # the turn boundary: any failure becomes a structured result
+            logger.exception("bridge turn %s failed", request_id)
             self.channel.send(
                 {"type": "result", "requestId": request_id, "ok": False, "code": "HERMES_ERROR",
                  "message": f"{type(exc).__name__}: {str(exc)[:500]}"}
@@ -241,12 +244,12 @@ def main(argv=None):
         os.chdir(args.workdir)
     try:
         agent = build_agent(args)
-    except Exception as exc:
+    except Exception as exc:  # startup boundary: report why Hermes could not start, then exit
         not_configured = type(exc).__name__ == "ProviderNotConfiguredError"
         code = "HERMES_NOT_CONFIGURED" if not_configured else "HERMES_INIT_FAILED"
         _diag("init_failed", exception=type(exc).__name__)
         if not not_configured:
-            traceback.print_exc(file=sys.stderr)
+            logger.exception("Hermes agent construction failed")
         channel.send({"type": "fatal", "code": code, "message": f"{type(exc).__name__}: {str(exc)[:500]}"})
         return EXIT_NOT_CONFIGURED if not_configured else EXIT_INIT_FAILED
 

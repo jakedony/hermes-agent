@@ -71,7 +71,11 @@ func (c *conn) serve() {
 	go c.writer()
 	c.send(protocol.Hello{ProtocolVersion: protocol.Version, Type: protocol.EventHello, ConnectionID: c.id, Limits: c.s.limits()})
 	c.readLoop()
-	c.teardown(errDisconnect)
+	if c.s.isShuttingDown() {
+		c.teardown(errShutdown)
+	} else {
+		c.teardown(errDisconnect)
+	}
 }
 
 // readLoop only parses and admits; Hermes work always runs on its own goroutine.
