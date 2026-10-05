@@ -28,6 +28,7 @@ const (
 const (
 	EventHello        = "hello"
 	EventAccepted     = "accepted"
+	EventAnswerDelta  = "answer_delta"
 	EventAnswer       = "answer"
 	EventError        = "error"
 	EventDone         = "done"
@@ -87,6 +88,18 @@ type Accepted struct {
 	NewSession      bool   `json:"newSession"`
 }
 
+// AnswerDelta is a provisional piece of the answer, sent only for asks with stream: true. Seq
+// starts at 0 and has no gaps. The following answer event's text is authoritative: a provider
+// retry inside Hermes can make the concatenated deltas differ from it.
+type AnswerDelta struct {
+	ProtocolVersion int    `json:"protocolVersion"`
+	Type            string `json:"type"`
+	RequestID       string `json:"requestId"`
+	SessionID       string `json:"sessionId"`
+	Seq             int    `json:"seq"`
+	Text            string `json:"text"`
+}
+
 type Answer struct {
 	ProtocolVersion int    `json:"protocolVersion"`
 	Type            string `json:"type"`
@@ -141,6 +154,7 @@ type Ask struct {
 	RequestID string
 	SessionID string
 	Message   string
+	Stream    bool
 }
 
 type EndSession struct {
@@ -183,6 +197,7 @@ type askWire struct {
 	SessionID       string          `json:"sessionId"`
 	Message         string          `json:"message"`
 	Context         json.RawMessage `json:"context"`
+	Stream          bool            `json:"stream"`
 }
 
 type endWire struct {
@@ -256,7 +271,7 @@ func parseAsk(data []byte, fields map[string]json.RawMessage, maxQuestionBytes i
 	if r := checkContext(w.Context, rej); r != nil {
 		return nil, r
 	}
-	return &Ask{RequestID: w.RequestID, SessionID: w.SessionID, Message: w.Message}, nil
+	return &Ask{RequestID: w.RequestID, SessionID: w.SessionID, Message: w.Message, Stream: w.Stream}, nil
 }
 
 func strictDecode(data []byte, v any, rej func(Code, string, string) *Reject) *Reject {

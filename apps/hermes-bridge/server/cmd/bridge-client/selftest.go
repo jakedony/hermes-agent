@@ -79,6 +79,7 @@ func runSelftest(o options) error {
 	out, err := c.ask(sessA, "Explain the difference between authentication and authorisation.")
 	s.record("real question", err == nil && out.Answer != nil && strings.TrimSpace(out.Answer.Text) != "" && out.Done != nil && out.Done.Status == "ok",
 		"outcome=%s err=%v answer=%q", out, err, answerText(out))
+	s.record("no answer_delta without stream:true", err == nil && out.Answer != nil && len(out.Deltas) == 0, "deltas=%d", len(out.Deltas))
 
 	out, err = c.ask(sessA, "Remember this test word: mango.")
 	s.record("follow-up 1 (remember)", err == nil && out.Answer != nil, "outcome=%s answer=%q", out, answerText(out))
@@ -86,6 +87,13 @@ func runSelftest(o options) error {
 	out, err = c.ask(sessA, "What test word did I give you?")
 	s.record("follow-up 2 (recall within session)", err == nil && strings.Contains(strings.ToLower(answerText(out)), "mango"),
 		"outcome=%s answer=%q", out, answerText(out))
+
+	out, err = c.askWith(sessA, "What test word did I give you? Name it, then write three short sentences about it.", true)
+	lead := out.AnswerAt.Sub(out.FirstDeltaAt)
+	s.record("streaming follow-up (stream:true)", err == nil && out.Answer != nil && len(out.Deltas) > 0 &&
+		strings.Contains(strings.ToLower(answerText(out)), "mango"),
+		"outcome=%s deltas=%d firstDeltaBeforeAnswer=%s streamMatchesAnswer=%v answer=%q",
+		out, len(out.Deltas), lead.Round(time.Millisecond), out.Answer != nil && out.Streamed() == out.Answer.Text, answerText(out))
 
 	out, err = c.ask(sessB, "What test word did I give you?")
 	s.record("isolation: other session, same connection", err == nil && out.Answer != nil && out.Accepted != nil && out.Accepted.NewSession &&

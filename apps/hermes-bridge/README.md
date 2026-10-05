@@ -29,8 +29,8 @@ bridge-client.exe / app ──ws──► localhost:8765 ═══► 127.0.0.1:
 |---|---|
 | Go unit and transport tests (mocked worker), run with `-race` | pass |
 | Python worker tests (stdout guard, not-configured and model routing use real Hermes imports) | pass |
-| Full stack against the **real Hermes runtime** with a **stub model** in a throwaway `HERMES_HOME` | pass (17/17 selftest checks, plus timeout, disconnect, origin, auth, log-leak and shutdown checks) |
-| Full stack against the **real `~/.hermes` configuration** with a **live model** (custom provider: Mistral, `mistral-medium-3-5`) | **pass**: 17/17 selftest checks with real answers, including the in-session follow-up recall and cross-session isolation; a separate two-turn run over subprotocol auth recalled the earlier turn |
+| Full stack against the **real Hermes runtime** with a **stub model** in a throwaway `HERMES_HOME` | pass (19/19 selftest checks, plus timeout, disconnect, origin, auth, log-leak and shutdown checks) |
+| Full stack against the **real `~/.hermes` configuration** with a **live model** (custom provider: Mistral, `mistral-medium-3-5`) | **pass**: 19/19 selftest checks with real answers, including the in-session follow-up recall, a streamed follow-up and cross-session isolation; a separate two-turn run over subprotocol auth recalled the earlier turn; a 935-character answer arrived as 22 `answer_delta` events over about 1.3 s before the final `answer` |
 
 The stub-model run proves the bridge, the worker and Hermes's own turn loop and history handling;
 the live run proves the same path against a real provider.
@@ -134,9 +134,15 @@ server/bin/bridge-client -token-file state/token -ask "Remember this test word: 
 server/bin/bridge-client -token-file state/token -interactive
 ```
 
-`-selftest` checks health, a real question, the mango follow-up, isolation across sessions and
-across connections, rejection of empty, malformed, unsupported, oversized and context-bearing
-messages, the busy policy, duplicate IDs and `end_session`. It exits non-zero on any failure.
+`-selftest` checks health, a real question, the mango follow-up, a streamed follow-up
+(`stream: true`, at least one `answer_delta` before the answer), that a plain ask gets no deltas,
+isolation across sessions and across connections, rejection of empty, malformed, unsupported,
+oversized and context-bearing messages, the busy policy, duplicate IDs and `end_session`. It
+exits non-zero on any failure.
+
+`-ask` and `-interactive` stream by default: the answer is printed as its `answer_delta` events
+arrive, and reprinted in full only if the authoritative `answer` differs from the streamed
+draft. `-stream=false` waits for the complete answer instead. `-raw` shows every event.
 `-raw` prints every event; `-browser-auth` sends the token the way a browser must; `-origin` sets
 an Origin header.
 
@@ -247,8 +253,10 @@ end-to-end run greps the server log for the questions, answers and token as a re
   started afterwards; running sessions keep their model (by design, for prompt caching).
 - Conversations are connection-scoped and in-memory only. Next steps: resumable session tokens
   issued by the server, and persistence through Hermes's `SessionDB`.
-- No token streaming (see the extension point in `PROTOCOL.md`), no document context
-  (`UNSUPPORTED_CONTEXT`), and no tools.
+- Streamed deltas are a draft, not a guarantee: after a provider retry inside Hermes they can
+  differ from the final `answer`, which clients must treat as authoritative (`PROTOCOL.md` §1.4).
+  Reasoning ("thinking") text is not streamed.
+- No document context (`UNSUPPORTED_CONTEXT`), and no tools.
 - One static token, no rotation endpoint (to rotate: delete `state/token` and restart), and no
   TLS (the SSH tunnel provides transport security).
 - The Go server is Linux-first (process groups, `PDEATHSIG`); the client is cross-platform.

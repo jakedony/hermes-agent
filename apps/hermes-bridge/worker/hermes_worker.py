@@ -77,6 +77,57 @@ class Channel:
                 os._exit(EXIT_PROTOCOL)
 
 
+class DeltaStream:
+    """Coalesces ``stream_delta_callback`` pieces into ``delta`` records for the current request.
+
+    Hermes calls the callback once per token, possibly from a provider-stream thread; one record
+    per token would flood the pipe, so pieces are batched for up to FLUSH_SECONDS or FLUSH_CHARS.
+    ``end()`` flushes before the turn's result is sent, so every delta precedes its result.
+    """
+
+    FLUSH_SECONDS = 0.05
+    FLUSH_CHARS = 2048
+
+    def __init__(self, channel):
+        self._channel = channel
+        self._lock = threading.Lock()
+        self._request_id = None
+        self._parts: list[str] = []
+        self._chars = 0
+        self._last_flush = 0.0
+
+    def begin(self, request_id, enabled):
+        with self._lock:
+            self._request_id = request_id if enabled else None
+            self._parts, self._chars, self._last_flush = [], 0, 0.0
+
+    def feed(self, text):
+        # None from Hermes closes a CLI display box; it is not end of stream.
+        if not isinstance(text, str) or not text:
+            return
+        with self._lock:
+            if self._request_id is None:
+                return
+            self._parts.append(text)
+            self._chars += len(text)
+            if self._chars >= self.FLUSH_CHARS or time.monotonic() - self._last_flush >= self.FLUSH_SECONDS:
+                self._flush_locked()
+
+    def end(self):
+        with self._lock:
+            self._flush_locked()
+            self._request_id = None
+
+    def _flush_locked(self):
+        text = "".join(self._parts)
+        self._parts, self._chars = [], 0
+        self._last_flush = time.monotonic()
+        # Bounded slices keep every delta far below the record limit, whose overflow substitute
+        # is a result record and would end the request early.
+        for i in range(0, len(text), self.FLUSH_CHARS):
+            self._channel.send({"type": "delta", "requestId": self._request_id, "text": text[i:i + self.FLUSH_CHARS]})
+
+
 def _diag(event, **fields):
     """One structured diagnostic line on stderr; never conversation content."""
     print(json.dumps({"worker": event, **fields}), file=sys.stderr, flush=True)
@@ -124,11 +175,12 @@ def _describe(exc):
     return format_runtime_provider_error(exc)
 
 
-def build_agent(args):
+def build_agent(args, on_delta=None):
     from run_agent import AIAgent
 
     return AIAgent(
         **resolve_route(),
+        stream_delta_callback=on_delta,
         quiet_mode=True,
         platform="api_server",
         enabled_toolsets=TOOL_POLICY,
@@ -145,9 +197,10 @@ def build_agent(args):
 class Conversation:
     """One AIAgent plus the message history it has produced so far."""
 
-    def __init__(self, agent, channel):
+    def __init__(self, agent, channel, deltas=None):
         self.agent = agent
         self.channel = channel
+        self.deltas = deltas or DeltaStream(channel)
         self.history: list[dict] = []
         self.task_id = f"bridge-task-{uuid.uuid4().hex[:12]}"
         self._lock = threading.Lock()
@@ -158,7 +211,7 @@ class Conversation:
     def busy(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, request_id, message):
+    def start(self, request_id, message, stream=False):
         with self._lock:
             if self.busy():
                 self.channel.send(
@@ -169,7 +222,7 @@ class Conversation:
             from agent.memory_provider import spawn_context_thread
 
             self._active_request = request_id
-            self._thread = spawn_context_thread(self._run, name="bridge-turn", args=(request_id, message))
+            self._thread = spawn_context_thread(self._run, name="bridge-turn", args=(request_id, message, stream))
             self._thread.start()
 
     def cancel(self, request_id):
@@ -184,23 +237,24 @@ class Conversation:
         if thread is not None:
             thread.join(timeout)
 
-    def _run(self, request_id, message):
+    def _run(self, request_id, message, stream):
         started = time.monotonic()
+        self.deltas.begin(request_id, stream)
         try:
             result = self.agent.run_conversation(
                 message, conversation_history=list(self.history), task_id=self.task_id
             )
         except Exception as exc:  # the turn boundary: any failure becomes a structured result
             logger.exception("bridge turn %s failed", request_id)
-            self.channel.send(
-                {"type": "result", "requestId": request_id, "ok": False, "code": "HERMES_ERROR",
-                 "message": f"{type(exc).__name__}: {str(exc)[:500]}"}
-            )
-            return
+            outcome = {"type": "result", "requestId": request_id, "ok": False, "code": "HERMES_ERROR",
+                       "message": f"{type(exc).__name__}: {str(exc)[:500]}"}
+        else:
+            outcome = self._outcome(request_id, result, time.monotonic() - started)
         finally:
+            self.deltas.end()
             with self._lock:
                 self._active_request = None
-        self.channel.send(self._outcome(request_id, result, time.monotonic() - started))
+        self.channel.send(outcome)
 
     def _outcome(self, request_id, result, elapsed):
         meta = {"model": result.get("model"), "provider": result.get("provider"),
@@ -226,7 +280,7 @@ class Conversation:
 def _handle(conv, record):
     kind = record.get("type")
     if kind == "ask" and isinstance(record.get("requestId"), str) and isinstance(record.get("message"), str):
-        conv.start(record["requestId"], record["message"])
+        conv.start(record["requestId"], record["message"], stream=record.get("stream") is True)
     elif kind == "cancel" and isinstance(record.get("requestId"), str):
         conv.cancel(record["requestId"])
     elif kind == "shutdown":
@@ -276,8 +330,9 @@ def main(argv=None):
     if args.workdir:
         os.makedirs(args.workdir, exist_ok=True)
         os.chdir(args.workdir)
+    deltas = DeltaStream(channel)
     try:
-        agent = build_agent(args)
+        agent = build_agent(args, deltas.feed)
     except Exception as exc:  # startup boundary: report why Hermes could not start, then exit
         # AuthError: the runtime resolver found no usable credentials (none set up, expired, or
         # exhausted); ProviderNotConfiguredError: AIAgent found no provider at all.
@@ -289,7 +344,7 @@ def main(argv=None):
         channel.send({"type": "fatal", "code": code, "message": f"{type(exc).__name__}: {_describe(exc)[:500]}"})
         return EXIT_NOT_CONFIGURED if not_configured else EXIT_INIT_FAILED
 
-    conv = Conversation(agent, channel)
+    conv = Conversation(agent, channel, deltas)
     channel.send({"type": "ready", "workerProtocolVersion": WORKER_PROTOCOL_VERSION, "pid": os.getpid(),
                   "hermesVersion": _hermes_version(), "tools": sorted(agent.valid_tool_names),
                   "memory": bool(args.memory)})

@@ -131,6 +131,8 @@ type tclient struct {
 	t  *testing.T
 	ws *websocket.Conn
 	ch chan map[string]any
+	// deltas holds the answer_delta events of the last collect, in arrival order.
+	deltas []map[string]any
 }
 
 func (h *harness) dial(opts *websocket.DialOptions) *tclient {
@@ -201,6 +203,7 @@ func (c *tclient) roundTrip(req, sess, msg string) (accepted, outcome, done map[
 
 func (c *tclient) collect(req string) (accepted, outcome, done map[string]any) {
 	c.t.Helper()
+	c.deltas = nil
 	for done == nil {
 		ev := c.next()
 		if ev["requestId"] != req {
@@ -215,6 +218,14 @@ func (c *tclient) collect(req string) (accepted, outcome, done map[string]any) {
 				c.t.Fatalf("accepted out of order: %v", ev)
 			}
 			accepted = ev
+		case "answer_delta":
+			if accepted == nil || outcome != nil {
+				c.t.Fatalf("answer_delta outside accepted..outcome: %v", ev)
+			}
+			if seq, _ := ev["seq"].(float64); int(seq) != len(c.deltas) {
+				c.t.Fatalf("answer_delta seq %v, want %d", ev["seq"], len(c.deltas))
+			}
+			c.deltas = append(c.deltas, ev)
 		case "answer", "error":
 			if outcome != nil {
 				c.t.Fatalf("second outcome for %s: %v", req, ev)
@@ -291,7 +302,8 @@ func TestRejectedMessagesKeepConnectionUsable(t *testing.T) {
 		{"missing message", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s"}, "MISSING_FIELD", "message", true},
 		{"message wrong type", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s", "message": 7}, "INVALID_FIELD", "message", true},
 		{"empty message", ask("a1", "s", " \n\t "), "EMPTY_MESSAGE", "message", true},
-		{"unknown field", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s", "message": "hi", "stream": true}, "INVALID_FIELD", "stream", true},
+		{"unknown field", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s", "message": "hi", "verbose": true}, "INVALID_FIELD", "verbose", true},
+		{"stream wrong type", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s", "message": "hi", "stream": "yes"}, "INVALID_FIELD", "stream", true},
 		{"question too large", ask("a1", "s", big), "MESSAGE_TOO_LARGE", "message", true},
 		{"frame too large", ask("a1", "s", strings.Repeat("q", 100<<10)), "MESSAGE_TOO_LARGE", "", false},
 		{"context set", map[string]any{"protocolVersion": 1, "type": "ask", "requestId": "a1", "sessionId": "s", "message": "hi",

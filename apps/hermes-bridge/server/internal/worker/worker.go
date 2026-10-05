@@ -102,6 +102,12 @@ type Process struct {
 	killed   bool
 
 	stderrLines int
+
+	// sinkMu is held for the whole of each delta delivery, so clearing the sink waits out an
+	// in-flight one: once Ask returns, no delta for its request can still be delivered.
+	sinkMu sync.Mutex
+	sinkID string
+	sink   func(text string)
 }
 
 // Start launches the worker and waits for its ready (or fatal) record.
@@ -172,8 +178,14 @@ func (p *Process) Exited() <-chan struct{} { return p.exited }
 
 // Ask sends one question and waits for its result. When ctx ends first, the worker is asked to
 // cancel; if it does not acknowledge within CancelGrace it is killed.
-func (p *Process) Ask(ctx context.Context, requestID, message string) (Result, error) {
-	if err := p.send(map[string]string{"type": "ask", "requestId": requestID, "message": message}); err != nil {
+//
+// A non-nil onDelta asks the worker to stream: it is called on the reader goroutine, in order,
+// for every delta of this request, and never after Ask returns. A slow onDelta stalls the worker
+// (backpressure) rather than buffering without bound.
+func (p *Process) Ask(ctx context.Context, requestID, message string, onDelta func(text string)) (Result, error) {
+	p.setSink(requestID, onDelta)
+	defer p.setSink("", nil)
+	if err := p.send(map[string]any{"type": "ask", "requestId": requestID, "message": message, "stream": onDelta != nil}); err != nil {
 		p.Kill()
 		<-p.exited
 		return Result{}, p.exitCause()
@@ -187,6 +199,7 @@ func (p *Process) Ask(ctx context.Context, requestID, message string) (Result, e
 	}
 
 	cause := context.Cause(ctx)
+	p.setSink("", nil)
 	_ = p.send(map[string]string{"type": "cancel", "requestId": requestID})
 	grace := time.NewTimer(p.spec.CancelGrace)
 	defer grace.Stop()
@@ -202,6 +215,22 @@ func (p *Process) Ask(ctx context.Context, requestID, message string) (Result, e
 		p.Kill()
 		<-p.exited
 		return Result{}, &CancelledError{Cause: cause, Recycled: true}
+	}
+}
+
+func (p *Process) setSink(requestID string, sink func(string)) {
+	p.sinkMu.Lock()
+	p.sinkID, p.sink = requestID, sink
+	p.sinkMu.Unlock()
+}
+
+// deliverDelta drops deltas for any request but the current one: a cancelled turn may still emit
+// a few before its result, and those are harmless.
+func (p *Process) deliverDelta(requestID, text string) {
+	p.sinkMu.Lock()
+	defer p.sinkMu.Unlock()
+	if p.sink != nil && requestID == p.sinkID && text != "" {
+		p.sink(text)
 	}
 }
 
@@ -346,6 +375,8 @@ func (p *Process) readStdout(r io.ReadCloser, readyCh chan<- record) {
 		case !gotReady && (rec.Type == "ready" || rec.Type == "fatal"):
 			gotReady = true
 			readyCh <- rec
+		case gotReady && rec.Type == "delta":
+			p.deliverDelta(rec.RequestID, rec.Text)
 		case gotReady && rec.Type == "result":
 			select {
 			case p.results <- rec.Result:

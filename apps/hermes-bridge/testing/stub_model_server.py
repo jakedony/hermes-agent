@@ -25,6 +25,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_ID = "bridge-stub-model"
+STREAM_CHUNK_SECONDS = 0.06
 _WORD = re.compile(r"test word:\s*([A-Za-z]+)", re.IGNORECASE)
 _SLEEP = re.compile(r"STUB_SLEEP\s+(\d+(?:\.\d+)?)")
 _record_lock = threading.Lock()
@@ -123,13 +124,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         base = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()), "model": MODEL_ID}
-        chunks = [
-            {"choices": [{"index": 0, "delta": {"role": "assistant", "content": answer}, "finish_reason": None}]},
+        # One chunk per word, paced like a real model, so streaming tests see incremental deltas.
+        words = re.findall(r"\S+\s*", answer) or [answer]
+        chunks = [{"choices": [{"index": 0, "delta": {"role": "assistant", "content": w}, "finish_reason": None}]}
+                  for w in words]
+        chunks += [
             {"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
             {"choices": [], "usage": usage},
         ]
         for chunk in chunks:
             self.wfile.write(f"data: {json.dumps({**base, **chunk})}\n\n".encode())
+            self.wfile.flush()
+            time.sleep(STREAM_CHUNK_SECONDS)
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 

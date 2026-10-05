@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,12 +36,12 @@ func runFakeWorker(mode string) {
 	var remembered string
 	turns := 0
 	cancels := make(chan string, 4)
-	asks := make(chan map[string]string)
+	asks := make(chan map[string]any)
 	go func() {
 		sc := bufio.NewScanner(os.Stdin)
 		sc.Buffer(make([]byte, 1<<20), 1<<20)
 		for sc.Scan() {
-			var rec map[string]string
+			var rec map[string]any
 			if json.Unmarshal(sc.Bytes(), &rec) != nil {
 				os.Exit(5)
 			}
@@ -48,7 +49,7 @@ func runFakeWorker(mode string) {
 			case "ask":
 				asks <- rec
 			case "cancel":
-				cancels <- rec["requestId"]
+				cancels <- rec["requestId"].(string)
 			case "shutdown":
 				os.Exit(0)
 			}
@@ -57,12 +58,38 @@ func runFakeWorker(mode string) {
 	}()
 
 	for rec := range asks {
-		id, msg := rec["requestId"], rec["message"]
+		id, msg := rec["requestId"].(string), rec["message"].(string)
 		result := func(text string) {
 			turns++
 			emit(map[string]any{"type": "result", "requestId": id, "ok": true, "text": text, "messageCount": turns * 2, "historyBytes": turns * 100})
 		}
+		// Deltas are emitted whether or not the ask set stream, so tests prove the server gates them.
+		delta := func(reqID, text string) { emit(map[string]any{"type": "delta", "requestId": reqID, "text": text}) }
 		switch {
+		case strings.HasPrefix(msg, "STREAM "):
+			n, _ := strconv.Atoi(strings.Fields(msg)[1])
+			var full strings.Builder
+			for i := 0; i < n; i++ {
+				piece := fmt.Sprintf("w%d ", i)
+				full.WriteString(piece)
+				delta(id, piece)
+			}
+			delta("some-other-request", "must never reach the client")
+			result(full.String())
+		case msg == "STREAM-REVISED":
+			delta(id, "draft that a provider retry ")
+			delta(id, "later replaced")
+			result("the authoritative final answer")
+		case msg == "STREAM-THEN-HANG":
+			delta(id, "partial ")
+			<-cancels
+			delta(id, "late delta after cancel")
+			emit(map[string]any{"type": "result", "requestId": id, "ok": false, "code": "CANCELLED", "message": "interrupted"})
+		case msg == "STREAM-FLOOD":
+			for i := 0; i < 64; i++ {
+				delta(id, strings.Repeat("y", 64<<10))
+			}
+			result("flood done")
 		case msg == "CRASH":
 			os.Exit(2)
 		case msg == "GARBAGE":

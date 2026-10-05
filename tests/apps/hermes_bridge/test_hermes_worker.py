@@ -164,6 +164,56 @@ def test_history_only_advances_on_successful_turns(tmp_path):
     assert agent.seen_history == [[], first, first, first]
 
 
+class _StreamingAgent:
+    """Stand-in that feeds stream_delta_callback the way Hermes does (tokens, plus None box-closes)."""
+
+    def __init__(self, pieces):
+        self.pieces = pieces
+        self.on_delta = None
+
+    def run_conversation(self, message, conversation_history=None, task_id=None):
+        for piece in self.pieces:
+            self.on_delta(piece)
+        text = "".join(p for p in self.pieces if p)
+        return {"final_response": text, "messages": _turn(message, text)}
+
+
+def _streaming_conversation(worker, pieces):
+    agent = _StreamingAgent(pieces)
+    conv = worker.Conversation(agent, worker.Channel(_Sink(), 1 << 20))
+    agent.on_delta = conv.deltas.feed
+    return conv
+
+
+def test_streamed_deltas_rebuild_the_answer_and_precede_the_result():
+    worker = _load_worker()
+    huge = "z" * (worker.DeltaStream.FLUSH_CHARS * 3 + 5)
+    conv = _streaming_conversation(worker, ["Hel", "lo", None, " world", huge])
+    result = _run_stream(conv, "r1")
+    records = conv.channel._stream.records
+    deltas = [r for r in records if r["type"] == "delta"]
+    assert records[-1] is result and result["ok"] is True
+    assert all(r["requestId"] == "r1" for r in deltas)
+    assert "".join(r["text"] for r in deltas) == result["text"]
+    # Coalesced (not one record per token) and every record bounded.
+    assert len(deltas) < 1 + 4 + 3
+    assert all(len(r["text"]) <= worker.DeltaStream.FLUSH_CHARS for r in deltas)
+
+
+def test_no_deltas_unless_the_request_asked_to_stream():
+    worker = _load_worker()
+    conv = _streaming_conversation(worker, ["a", "b"])
+    conv.start("r1", "hi")
+    conv.wait(10)
+    assert [r["type"] for r in conv.channel._stream.records] == ["result"]
+
+
+def _run_stream(conv, request_id):
+    conv.start(request_id, "hi", stream=True)
+    conv.wait(10)
+    return conv.channel._stream.records[-1]
+
+
 def test_oversized_answer_becomes_structured_error():
     worker = _load_worker()
     sink = _Sink()

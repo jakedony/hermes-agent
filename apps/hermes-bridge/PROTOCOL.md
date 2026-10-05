@@ -49,12 +49,16 @@ answer, so it is never silently ignored.
   "requestId": "req-001",
   "sessionId": "session-001",
   "message": "Explain the difference between authentication and authorisation.",
-  "context": null
+  "context": null,
+  "stream": true
 }
 ```
 
 - `message`: required. It must contain non-whitespace text and be at most `maxQuestionBytes`
   (32 KiB) of UTF-8.
+- `stream`: optional boolean, default `false`. When `true`, the answer is also delivered
+  incrementally as `answer_delta` events before the `answer` event (§1.4). A non-boolean value
+  is `INVALID_FIELD`. Clients that never send it see exactly the original v1 event sequence.
 - `context`: optional, and reserved for the PDF reader:
 
   ```json
@@ -86,6 +90,7 @@ safely.
 |---|---|---|
 | `hello` | immediately after connect | `connectionId`, `limits` |
 | `accepted` | the request was admitted | `newSession` (true when this request started a fresh conversation) |
+| `answer_delta` | only for `stream: true`: the next piece of the answer as Hermes produces it | `seq` (0, 1, 2, … with no gaps), `text` |
 | `answer` | Hermes produced the complete final response | `text` |
 | `error` | a structured failure | `code`, `message`, `retryable`, `rejected`, `sessionReset?`, `field?` |
 | `done` | the request finished | `status` (`"ok"` or `"error"`), `durationMs` |
@@ -103,6 +108,19 @@ Example `answer` and `error` events:
 
 - **Accepted request:** `accepted`, then exactly one `answer` **or** `error` (with
   `rejected: false`), then exactly one `done`, as long as the connection stays open.
+- **Streaming request** (`stream: true`): `accepted`, then zero or more `answer_delta`, then the
+  same single `answer` or `error`, then `done`. No `answer_delta` follows the outcome, and none
+  is sent once a request has timed out or been cancelled.
+  - Deltas are a **provisional draft**. Show them as they arrive, then **replace the draft with
+    `answer.text`**, which is authoritative. They normally concatenate to exactly `answer.text`,
+    but a provider retry inside Hermes can restart the reply after some text was already
+    streamed, and the server never retracts sent deltas.
+  - After an `error`, discard the draft: the turn did not enter the conversation history.
+  - Zero deltas is valid (for example, a provider that does not stream); the `answer` still
+    arrives. Streamed text per request is capped at `maxWorkerRecordBytes`; past it the remaining
+    deltas are dropped and only `answer` carries the rest.
+  - A slow reader slows the agent rather than making the server buffer without bound; the
+    request timeout still applies.
 - **Rejected request:** exactly one `error` with `rejected: true`. No `accepted` precedes it and no
   `done` follows it. A rejected request did not run and does not consume its `requestId`, so a
   `retryable` rejection may be resent unchanged.
@@ -170,10 +188,6 @@ Either way, the timed-out work does not keep running.
 
 ### 1.8 Extension points (not implemented)
 
-- **Streaming:** a future `protocolVersion: 2`, or an opt-in `ask.stream: true` (rejected today as
-  an unknown field), would add `answer_delta` events between `accepted` and `answer`. `answer`
-  stays the complete final text, so v1 clients keep working. The worker already runs the agent in
-  a thread, so Hermes's `stream_callback` can emit records without changing the lifecycle.
 - **Document context:** `context` is already parsed and validated. Supporting it means delivering
   it to Hermes as part of the user turn (never by editing the system prompt mid-conversation, which
   would break Hermes's prompt cache) and then accepting it instead of returning
@@ -196,7 +210,8 @@ travels inside JSON on stdin.
 |---|---|
 | worker → server | `{"type":"ready","workerProtocolVersion":1,"pid":N,"hermesVersion":"...","tools":[],"memory":false}` |
 | worker → server | `{"type":"fatal","code":"HERMES_NOT_CONFIGURED"\|"HERMES_INIT_FAILED","message":"..."}`, after which the worker exits |
-| server → worker | `{"type":"ask","requestId":"...","message":"..."}` |
+| server → worker | `{"type":"ask","requestId":"...","message":"...","stream":true\|false}` |
+| worker → server | `{"type":"delta","requestId":"...","text":"..."}`: only while a `stream: true` ask runs. These are Hermes's `stream_delta_callback` pieces (already scrubbed of reasoning and memory-context spans by Hermes), coalesced for up to 50 ms or 2048 characters per record, and all flushed before the result |
 | server → worker | `{"type":"cancel","requestId":"..."}` |
 | server → worker | `{"type":"shutdown"}`, or EOF on stdin (the worker interrupts any turn, calls `AIAgent.close()` and exits) |
 | worker → server | `{"type":"result","requestId":"...","ok":true,"text":"...","messageCount":N,"historyBytes":N,"apiCalls":N,"elapsedMs":N}` |
@@ -204,4 +219,5 @@ travels inside JSON on stdin.
 
 The server treats any of the following as `WORKER_PROTOCOL_ERROR` and kills the worker: invalid
 JSON, an unexpected record type, a result for the wrong request, an oversized line, or a partial
-line at EOF. A process exit while a request is outstanding is `WORKER_CRASHED`.
+line at EOF. A `delta` for any request other than the one in flight (for example a cancelled
+turn's last tokens) is dropped, not treated as an error. A process exit while a request is outstanding is `WORKER_CRASHED`.

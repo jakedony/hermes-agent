@@ -335,7 +335,7 @@ func (c *conn) execute(ctx context.Context, sess *session, a *protocol.Ask) (wor
 	}
 	reqCtx, cancel := context.WithTimeoutCause(ctx, c.s.cfg.RequestTimeout.Duration, errTimeout)
 	defer cancel()
-	res, err := sess.proc.Ask(reqCtx, a.RequestID, a.Message)
+	res, err := sess.proc.Ask(reqCtx, a.RequestID, a.Message, c.deltaForwarder(a))
 	if err != nil {
 		return res, askFailure(err)
 	}
@@ -343,6 +343,25 @@ func (c *conn) execute(ctx context.Context, sess *session, a *protocol.Ask) (wor
 		return res, resultFailure(res)
 	}
 	return res, nil
+}
+
+// deltaForwarder turns worker deltas into answer_delta events, or returns nil when the client did
+// not ask to stream. Streamed text per request is capped at maxWorkerRecordBytes, the same bound
+// as the final answer; past it the remaining deltas are dropped and the answer event still
+// carries the full text (or RESPONSE_TOO_LARGE).
+func (c *conn) deltaForwarder(a *protocol.Ask) func(string) {
+	if !a.Stream {
+		return nil
+	}
+	seq, streamed, limit := 0, 0, c.s.cfg.MaxWorkerRecordBytes
+	return func(text string) {
+		if streamed += len(text); streamed > limit {
+			return
+		}
+		c.send(protocol.AnswerDelta{ProtocolVersion: protocol.Version, Type: protocol.EventAnswerDelta,
+			RequestID: a.RequestID, SessionID: a.SessionID, Seq: seq, Text: text})
+		seq++
+	}
 }
 
 func startFailure(ctx context.Context, err error) *failure {
