@@ -28,13 +28,12 @@ bridge-client.exe / app ──ws──► localhost:8765 ═══► 127.0.0.1:
 | check | result |
 |---|---|
 | Go unit and transport tests (mocked worker), run with `-race` | pass |
-| Python worker tests (stdout guard and not-configured use real Hermes imports) | pass |
+| Python worker tests (stdout guard, not-configured and model routing use real Hermes imports) | pass |
 | Full stack against the **real Hermes runtime** with a **stub model** in a throwaway `HERMES_HOME` | pass (17/17 selftest checks, plus timeout, disconnect, origin, auth, log-leak and shutdown checks) |
-| Full stack against the **real `~/.hermes` configuration** with a live model | **not possible on this VM**: no provider configured. Every model-dependent check returns a structured `HERMES_NOT_CONFIGURED`; every check that needs no model passes |
+| Full stack against the **real `~/.hermes` configuration** with a **live model** (custom provider: Mistral, `mistral-medium-3-5`) | **pass**: 17/17 selftest checks with real answers, including the in-session follow-up recall and cross-session isolation; a separate two-turn run over subprotocol auth recalled the earlier turn |
 
-The stub-model run proves the bridge, the worker and Hermes's own turn loop and history handling.
-It does **not** prove a live model answer. The live answer still needs a configured provider; see
-the next section.
+The stub-model run proves the bridge, the worker and Hermes's own turn loop and history handling;
+the live run proves the same path against a real provider.
 
 ## Environment found on the VM (inspected, not modified)
 
@@ -46,12 +45,12 @@ the next section.
 | Hermes install | git checkout at `/workspace`, version `git.7157422 (2026.9.24)`, commit `7157422022ff`, install method `git` |
 | Hermes Python environment | PM-managed (`pm/`, `uv.lock`). `hermes` runs `scripts/run-in-hermes-env python3 /workspace/hermes`, which sets `PYTHONPATH=/workspace:<PM venv site-packages>`. Do not `pip install` into it. |
 | Programmatic interface | `run_agent.AIAgent(...)`, then `.run_conversation(user_message, conversation_history=…, task_id=…) -> dict` (`final_response`, `messages`, `interrupted`, `failed`, …), plus `.interrupt()` and `.close()`. Verified against the installed code, not only the docs. |
-| Provider, model and auth loading | `AIAgent()` without model, provider or key resolves exactly like the CLI from `HERMES_HOME` (default `~/.hermes`): the `config.yaml` `model:` section, then API keys in `.env`, then subscription/OAuth credentials and pools in `auth.json` (Nous Portal, OpenAI Codex, xAI, MiniMax, …). The bridge never reads or forwards credentials. |
-| API key or OAuth on this VM | **Neither.** `hermes status` shows no model, no API keys, no `.env` and no OAuth logins. `AIAgent()` raises `ProviderNotConfiguredError`. |
+| Provider, model and auth loading | The worker resolves the route the way the gateway and `hermes -z` do: `model.default` from `config.yaml`, and `hermes_cli.runtime_provider.resolve_runtime_with_fallback` for provider, endpoint and credentials (API keys in `.env`, subscription/OAuth credentials and pools in `auth.json`, the fallback chain), all from `HERMES_HOME` (default `~/.hermes`). Hermes reads the credentials; the bridge never logs or forwards them. A bare `AIAgent()` is not enough: it sends no model id, which real endpoints reject (`HTTP 400: Missing model parameter`). |
+| API key or OAuth on this VM | Initially **neither**; a custom Mistral provider (key in `.env`) was later configured with `hermes model`. Without one, the worker reports `HERMES_NOT_CONFIGURED`. |
 
 So programmatic invocation reuses whatever authentication the CLI uses, with no incompatibility.
-There is simply nothing configured yet. The smallest supported fix is to configure Hermes itself
-on the VM, in an SSH session as the user who will run the bridge:
+If nothing is configured yet, the smallest supported fix is to configure Hermes itself on the VM,
+in an SSH session as the user who will run the bridge:
 
 ```bash
 hermes model          # pick a provider: OAuth login (e.g. Nous Portal) or paste an API key
@@ -242,8 +241,10 @@ end-to-end run greps the server log for the questions, answers and token as a re
 
 ## Known limitations and next steps
 
-- **Live model answers were not verified on this VM**, because no provider is configured. Run
-  `hermes model`, then `bridge-client -selftest`.
+- The live run used one provider (Mistral through Hermes's custom-provider path). Other providers
+  go through the same Hermes resolver but were not exercised here.
+- The worker resolves its model once at start, so a `hermes model` change applies to sessions
+  started afterwards; running sessions keep their model (by design, for prompt caching).
 - Conversations are connection-scoped and in-memory only. Next steps: resumable session tokens
   issued by the server, and persistence through Hermes's `SessionDB`.
 - No token streaming (see the extension point in `PROTOCOL.md`), no document context

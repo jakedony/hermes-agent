@@ -61,6 +61,43 @@ def test_unconfigured_hermes_yields_one_fatal_record(tmp_path):
     assert records[0]["code"] == "HERMES_NOT_CONFIGURED"
 
 
+def test_worker_sends_the_configured_model_to_the_provider(tmp_path):
+    """A real worker against a temp HERMES_HOME whose provider rejects requests lacking the
+    configured model id (as Mistral does: "Missing model parameter")."""
+    spec = importlib.util.spec_from_file_location(
+        "stub_model_server", REPO / "apps" / "hermes-bridge" / "testing" / "stub_model_server.py")
+    stub = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stub)
+    server = stub.StubServer(("127.0.0.1", 0), str(tmp_path / "requests.jsonl"))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "config.yaml").write_text(textwrap.dedent(f"""\
+        model:
+          default: {stub.MODEL_ID}
+          provider: custom
+          base_url: http://127.0.0.1:{server.server_address[1]}/v1
+          api_key: stub-not-a-secret
+        """))
+    proc = subprocess.Popen(
+        [sys.executable, str(WORKER), "--hermes-home", str(home), "--workdir", str(tmp_path / "wd")],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=_env(tmp_path),
+    )
+    try:
+        assert json.loads(proc.stdout.readline())["type"] == "ready"
+        proc.stdin.write(json.dumps({"type": "ask", "requestId": "r1", "message": "hello"}) + "\n")
+        proc.stdin.flush()
+        result = json.loads(proc.stdout.readline())
+        proc.stdin.write('{"type":"shutdown"}\n')
+        proc.stdin.close()
+        assert proc.wait(60) == 0
+    finally:
+        proc.kill()
+        server.shutdown()
+    assert (result["ok"], result["model"]) == (True, stub.MODEL_ID), result
+    assert result["text"].startswith("Stub answer")
+
+
 class _Sink:
     def __init__(self):
         self.records = []

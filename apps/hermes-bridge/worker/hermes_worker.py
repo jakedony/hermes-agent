@@ -91,10 +91,44 @@ def _hermes_version():
     return f"{get_version_info().derived_version} ({__release_date__})"
 
 
+def resolve_route():
+    """The configured model plus its provider runtime, resolved like the gateway does.
+
+    ``AIAgent()`` without ``model=`` sends no model id, which real endpoints
+    reject ("Missing model parameter"), so the route must be resolved here.
+    """
+    from hermes_cli.config import load_config
+    from hermes_cli.runtime_provider import resolve_runtime_with_fallback
+
+    cfg = load_config()
+    model_cfg = cfg.get("model")
+    if isinstance(model_cfg, str):
+        model = model_cfg
+    else:
+        model = (model_cfg or {}).get("default") or (model_cfg or {}).get("model") or ""
+    runtime, fallback_entry = resolve_runtime_with_fallback(cfg, target_model=model or None)
+    if fallback_entry is not None:
+        model = fallback_entry["model"]
+    route = {key: runtime.get(key) for key in
+             ("api_key", "base_url", "provider", "requested_provider", "api_mode", "credential_pool",
+              "request_overrides", "command")}
+    route["args"] = list(runtime.get("args") or [])
+    route["model"] = model
+    return route
+
+
+def _describe(exc):
+    """Hermes's own operator-facing wording for a provider-resolution failure."""
+    from hermes_cli.runtime_provider import format_runtime_provider_error
+
+    return format_runtime_provider_error(exc)
+
+
 def build_agent(args):
     from run_agent import AIAgent
 
     return AIAgent(
+        **resolve_route(),
         quiet_mode=True,
         platform="api_server",
         enabled_toolsets=TOOL_POLICY,
@@ -245,12 +279,14 @@ def main(argv=None):
     try:
         agent = build_agent(args)
     except Exception as exc:  # startup boundary: report why Hermes could not start, then exit
-        not_configured = type(exc).__name__ == "ProviderNotConfiguredError"
+        # AuthError: the runtime resolver found no usable credentials (none set up, expired, or
+        # exhausted); ProviderNotConfiguredError: AIAgent found no provider at all.
+        not_configured = type(exc).__name__ in {"AuthError", "ProviderNotConfiguredError"}
         code = "HERMES_NOT_CONFIGURED" if not_configured else "HERMES_INIT_FAILED"
         _diag("init_failed", exception=type(exc).__name__)
         if not not_configured:
             logger.exception("Hermes agent construction failed")
-        channel.send({"type": "fatal", "code": code, "message": f"{type(exc).__name__}: {str(exc)[:500]}"})
+        channel.send({"type": "fatal", "code": code, "message": f"{type(exc).__name__}: {_describe(exc)[:500]}"})
         return EXIT_NOT_CONFIGURED if not_configured else EXIT_INIT_FAILED
 
     conv = Conversation(agent, channel)

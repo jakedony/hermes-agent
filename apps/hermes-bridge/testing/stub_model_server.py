@@ -86,6 +86,11 @@ class Handler(BaseHTTPRequestHandler):
         if not self.path.rstrip("/").endswith("/chat/completions"):
             self._json(404, {"error": {"message": "not found"}})
             return
+        if req.get("model") != MODEL_ID:
+            # Real endpoints (Mistral: "Missing model parameter") reject this; so must the stub.
+            self.server.record({"rejected": "model", "model": req.get("model")})
+            self._json(400, {"error": {"message": f"Unknown or missing model parameter: {req.get('model')!r}"}})
+            return
         messages = req.get("messages") or []
         self.server.record(
             {
