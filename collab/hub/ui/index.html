@@ -31,7 +31,7 @@
     color: var(--text);
     font: 14px/1.45 Inter, "Noto Sans", "DejaVu Sans", sans-serif;
     display: grid;
-    grid-template-columns: 252px minmax(420px, 1fr) minmax(560px, 1.3fr);
+    grid-template-columns: 232px minmax(400px, 0.92fr) minmax(620px, 1.28fr);
     grid-template-rows: minmax(0, 1fr);
   }
   button, textarea, input { font: inherit; color: inherit; }
@@ -66,9 +66,12 @@
   .mark { width: 36px; height: 36px; display: block; }
   .mark svg { width: 36px; height: 36px; display: block; }
   .member .name { display: block; font-weight: 650; font-size: 13.5px; line-height: 1.2; }
-  .member .role { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .member .role, .member .status {
+    display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #5c5a54; margin-right: 5px; vertical-align: 1px; }
-  .dot.running, .dot.reported, .dot.saved { background: var(--green); }
+  .dot.running, .dot.reported { background: var(--green); }
   .dot.queued { background: var(--amber); }
   .rail-foot { margin: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: #181920; }
   .settings-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
@@ -98,27 +101,30 @@
   .stage-head b { font-size: 12px; font-weight: 700; letter-spacing: 0.11em; }
   #cancel:disabled { opacity: 0.45; cursor: default; }
   .log { flex: 1; overflow: auto; min-height: 0; padding: 14px 16px 8px; }
-  .msg { display: flex; flex-direction: column; align-items: stretch; margin: 0 0 12px; min-width: 0; max-width: 100%; }
+  .msg { display: flex; flex-direction: column; align-items: stretch; margin: 0 0 14px; min-width: 0; max-width: 100%; }
   .msg .meta {
     display: flex; gap: 8px; align-items: baseline; position: static;
-    margin: 0 0 6px; padding: 0; line-height: 16px; font-size: 11px; letter-spacing: 0.04em;
+    margin: 0 0 4px; padding: 0; line-height: 16px; font-size: 12px;
   }
-  .msg .text { display: block; position: static; margin: 0; min-width: 0; max-width: 100%; line-height: 1.45; overflow-wrap: anywhere; }
+  .msg .name { display: inline; width: auto; height: auto; font-weight: 650; font-size: 12px; line-height: 16px; }
+  .msg .time { color: var(--faint); font-size: 11px; }
+  .msg .text {
+    display: block; position: static; margin: 0; min-width: 0; max-width: 100%;
+    line-height: 1.45; overflow-wrap: anywhere;
+  }
   .msg-human { align-items: flex-end; }
   .msg-human .meta { color: var(--muted); }
-  .msg-human .text { background: var(--bubble); border-radius: 14px; padding: 10px 12px; max-width: min(420px, 100%); }
+  .msg-human .text { background: var(--bubble); border-radius: 14px; padding: 10px 12px; max-width: min(440px, 100%); }
   .msg-speaker .meta { color: var(--green); }
-  .msg-speaker.is-focus .text { box-shadow: inset 2px 0 0 var(--green); padding-left: 10px; }
-  .msg-human.is-focus .text { box-shadow: inset 0 0 0 1px #4a4c54; }
   .lead { margin: 0; }
   .lead + .lead { margin-top: 4px; }
   .evlabel { margin: 8px 0 4px; font-size: 11px; letter-spacing: 0.04em; color: var(--muted); }
-  .excerpt, .obs pre, .pip pre {
+  .excerpt {
     margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
     font: 13px/1.4 "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+    padding: 8px 10px; background: #14151b; border-radius: 8px; color: #e7f6df;
   }
-  .excerpt { padding: 8px 10px; background: #14151b; border-radius: 8px; color: #e7f6df; }
-  .sysline { margin: 0 0 8px; text-align: center; color: var(--faint); font-size: 12px; line-height: 1.35; }
+  .sysline { margin: 0 0 10px; text-align: center; color: var(--faint); font-size: 12px; line-height: 1.35; }
   .roots { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
   .rootpick { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); background: transparent; }
   .rootpick.on { color: var(--text); background: #22232b; }
@@ -138,49 +144,51 @@
     box-shadow: 0 0 0 1px #000;
   }
   .tabbar { display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px 0; min-width: 0; }
-  .lights { display: flex; gap: 5px; padding: 0 4px 8px; }
+  .lights { display: flex; gap: 5px; padding: 0 4px 8px; flex: 0 0 auto; }
   .lights i { width: 10px; height: 10px; border-radius: 50%; display: block; }
   .lights .red { background: #ff5f57; }
   .lights .yellow { background: #febc2e; }
   .lights .green { background: #28c840; }
-  .tabs { display: flex; gap: 4px; overflow: auto; min-width: 0; flex: 1; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; flex: 1; align-items: flex-end; }
   .tab {
     border: 0; background: transparent; color: var(--muted); border-radius: 8px 8px 0 0;
-    padding: 6px 10px; font-size: 12px; white-space: nowrap;
+    padding: 6px 8px; font-size: 12px; white-space: nowrap;
   }
-  .tab.on { background: #2a2c33; color: var(--text); }
+  .tab.on { background: var(--paper); color: var(--ink); }
   .omnibox { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: #22232a; }
   .url {
     flex: 1; min-width: 0; display: flex; justify-content: space-between; gap: 8px;
-    background: #121318; border-radius: 999px; padding: 5px 12px; font-size: 12px; color: #c8c4ba;
+    background: #121318; border-radius: 999px; padding: 6px 12px; font-size: 12px; color: #c8c4ba;
   }
-  .url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace; }
   .url-status { color: var(--faint); flex: 0 0 auto; }
   #give { border-radius: 999px; padding: 6px 10px; background: #2e3038; border: 1px solid #3a3c44; white-space: nowrap; }
-  .page { flex: 1; min-height: 0; overflow: auto; background: var(--paper); color: var(--ink); }
-  .sheet { padding: 22px 24px 132px; }
-  .kicker { margin: 0 0 8px; color: var(--paper-muted); font-size: 12px; letter-spacing: 0.03em; }
-  .sheet h2 { margin: 0 0 8px; font-size: 32px; font-weight: 560; letter-spacing: -0.02em; }
-  .summary { margin: 0 0 12px; font-size: 15px; line-height: 1.4; }
-  .sheet > .src { margin: 0 0 12px; color: var(--paper-muted); font-size: 12px; }
-  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .cell { background: #fff; border: 1px solid var(--paper-line); border-radius: 10px; padding: 10px 12px; min-height: 88px; }
-  .cell.has { grid-column: 1 / -1; }
-  .cell h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--paper-muted); font-weight: 650; }
-  .cell .src { margin: 0 0 8px; color: var(--paper-muted); font-size: 12px; }
-  .cell pre { background: #12150f; color: #dff6d2; padding: 14px 16px; border-radius: 8px; font-size: 18px; }
-  .cell .none { margin: 8px 0 0; color: var(--paper-muted); font-size: 13px; }
-  .empty { color: var(--paper-muted); margin: 12px 0; }
+  #give.armed { background: #1d2a1e; color: var(--green); border-color: #3c5a38; }
+  .page { flex: 1; min-height: 0; overflow: auto; background: var(--paper); color: var(--ink); position: relative; }
+  .sheet { padding: 28px 32px 28px; max-width: 760px; }
+  .kicker { margin: 0 0 6px; color: var(--paper-muted); font-size: 12px; letter-spacing: 0.03em; }
+  .sheet h2 { margin: 0 0 14px; font-size: 28px; font-weight: 560; letter-spacing: -0.02em; line-height: 1.15; }
+  .read {
+    margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 22px/1.4 "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+    color: #14210f; background: #fff; border: 1px solid var(--paper-line); border-radius: 10px; padding: 16px 18px;
+  }
+  .attrib { margin: 0 0 16px; color: var(--paper-muted); font-size: 13px; }
+  .empty { color: var(--paper-muted); margin: 8px 0 0; font-size: 15px; }
   .pip {
-    position: absolute; right: 14px; bottom: 14px; width: 390px; z-index: 2;
+    position: absolute; right: 14px; bottom: 14px; width: 520px; max-width: calc(100% - 28px); z-index: 2;
     background: #141414; color: #f2f0ea; border-radius: 10px; overflow: hidden;
     box-shadow: 0 10px 28px rgba(0,0,0,.35);
   }
   .pip header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; background: #1d1d1d; font-size: 12px; }
-  .pip header button { border: 1px solid #3a3a3a; border-radius: 6px; padding: 3px 7px; background: #2a2a2a; }
-  .pip .pip-body { padding: 8px; }
+  .pip header button { border: 1px solid #3a3a3a; border-radius: 6px; padding: 3px 7px; background: #2a2a2a; color: #f2f0ea; }
+  .pip .pip-body { padding: 8px 10px 10px; }
   .pip .op { margin: 0 0 4px; color: #b7b3aa; font-size: 11px; }
-  .pip pre { color: #e7f6df; font-size: 12px; }
+  .pip-line {
+    margin: 0; color: #f4fff0;
+    font: 15px/1.35 "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+    white-space: nowrap;
+  }
   .stage-foot {
     flex: 0 0 auto; display: flex; justify-content: space-between; gap: 12px;
     padding: 4px 16px 10px; color: var(--muted); font-size: 12px;
@@ -219,7 +227,7 @@
     <span class="state right" id="statepill">idle</span>
   </header>
   <div class="log" id="log"></div>
-  <p class="compose-note" id="compose-note" hidden>Only the coordinator delegates. Send still creates the human root for Hermes-PC.</p>
+  <p class="compose-note" id="compose-note" hidden>Hermes-VM cannot open a root. The coordinator has to delegate. Send still creates the human root for Hermes-PC.</p>
   <div class="chip" id="handoff" hidden>
     <span id="handoff-label"></span>
     <button id="handoff-clear" type="button">Remove</button>
@@ -255,14 +263,14 @@ const MARK = {
   "hermes-vm": '<svg viewBox="0 0 36 36" aria-hidden="true"><rect width="36" height="36" rx="18" fill="#1a2c3d"/><rect x="11" y="8" width="14" height="5" rx="1" fill="#9ec4e4"/><rect x="11" y="15.5" width="14" height="5" rx="1" fill="#7eabc8"/><rect x="11" y="23" width="14" height="5" rx="1" fill="#5d8eae"/></svg>'
 };
 const MACHINE = { "hermes-pc": "PC", "hermes-vm": "VM" };
-const TABS = [
-  ["screen", "Screen", null],
-  ["sockets", "Sockets", ["listening_sockets"]],
-  ["probe", "Probe", ["tcp_probe"]],
-  ["route", "Route", ["route_show"]],
-  ["service", "Service", ["service_status"]],
-  ["dns", "DNS", ["dns_lookup"]],
-  ["logs", "Logs", ["service_logs"]]
+const SLUG = { "hermes-pc": "pc", "hermes-vm": "vm" };
+const OPS = [
+  ["listening_sockets", "Listening sockets"],
+  ["tcp_probe", "TCP probe"],
+  ["route_show", "Route"],
+  ["service_status", "Service"],
+  ["service_logs", "Logs"],
+  ["dns_lookup", "DNS"]
 ];
 const SYSTEM = {
   "task.started": "Started",
@@ -274,6 +282,7 @@ const SYSTEM = {
   "task.failed": "Failed",
   "task.cancel_rejected": "Cancel rejected"
 };
+const ADDR = /\b(\d{1,3}(?:\.\d{1,3}){3}:\d{1,5})\b/;
 const state = {
   token: sessionStorage.getItem(TOKEN_KEY) || "",
   tasks: [],
@@ -281,9 +290,11 @@ const state = {
   selected: null,
   focus: "hermes-vm",
   machine: "hermes-vm",
-  tab: "screen",
+  tab: "listening_sockets",
   handoff: null,
   logSig: "",
+  renderedFocus: "",
+  renderedRoot: "",
   timer: 0
 };
 
@@ -311,15 +322,16 @@ function currentRoot() {
   return roots().find(t => t.task_id === state.selected) || null;
 }
 function agentStatus(id) {
-  const mine = state.tasks.filter(t => t.assigned_to === id);
+  if (!state.token) return "idle";
+  const mine = id === "human-jacob"
+    ? state.tasks.filter(t => t.requested_by === id && !t.parent_task_id)
+    : state.tasks.filter(t => t.assigned_to === id);
   if (mine.some(t => t.state === "running")) return "running";
   if (mine.some(t => t.state === "queued")) return "queued";
-  if (mine.some(t => t.state === "completed")) return "reported";
-  return "idle";
-}
-function tabOps(tab) {
-  const row = TABS.find(t => t[0] === tab);
-  return row ? row[2] : null;
+  const newest = mine.slice().sort((a, b) => (b.updated_at_ms || 0) - (a.updated_at_ms || 0))[0];
+  if (!newest) return "idle";
+  if (newest.state === "completed") return "reported";
+  return newest.state || "idle";
 }
 function evidenceFor(agentId) {
   const cards = [];
@@ -327,13 +339,34 @@ function evidenceFor(agentId) {
   for (const task of tasks) {
     const result = parseMaybe(task.result) || {};
     const items = Array.isArray(result.evidence) ? result.evidence : [];
-    for (const ev of items) cards.push({ task, ev, summary: result.summary || "", limitations: result.limitations || [] });
+    for (const ev of items) cards.push({ task, ev, summary: result.summary || "" });
   }
   return cards;
 }
-function visibleCards() {
-  const ops = tabOps(state.tab);
-  return evidenceFor(state.machine).filter(c => !ops || ops.indexOf(c.ev.operation) >= 0);
+function endpointOf(ev) {
+  const match = String(ev.excerpt || "").match(ADDR);
+  return match ? match[1] : "";
+}
+function namedEndpoint(cards) {
+  const probe = cards.find(c => c.ev.operation === "tcp_probe" && endpointOf(c.ev));
+  const listen = cards.find(c => c.ev.operation === "listening_sockets" && endpointOf(c.ev));
+  const any = cards.find(c => endpointOf(c.ev));
+  const card = probe || listen || any;
+  if (!card) return null;
+  return { addr: endpointOf(card.ev), card: card };
+}
+function buildTabs(agentId) {
+  const cards = evidenceFor(agentId);
+  const tabs = OPS.map(([id, label]) => ({
+    id: id, label: label, path: id, cards: cards.filter(c => c.ev.operation === id)
+  }));
+  const named = namedEndpoint(cards);
+  if (named) tabs.push({ id: "ep:" + named.addr, label: named.addr, path: named.addr, cards: [named.card] });
+  return tabs;
+}
+function activeTab() {
+  const tabs = buildTabs(state.machine);
+  return tabs.find(t => t.id === state.tab) || tabs.find(t => t.cards.length) || tabs[0];
 }
 
 async function api(path, opts) {
@@ -350,11 +383,11 @@ async function api(path, opts) {
 
 function renderAgents() {
   $("roster").innerHTML = AGENTS.map(a => {
-    const status = state.token ? agentStatus(a.id) : "idle";
+    const status = agentStatus(a.id);
     const on = state.focus === a.id ? " on" : "";
     return `<button class="member${on}" type="button" data-id="${a.id}" aria-pressed="${state.focus === a.id}">
       <span class="mark">${MARK[a.id] || ""}</span>
-      <span><span class="name">${esc(a.name)}</span><span class="role">${esc(a.role)} · <i class="dot ${esc(status)}"></i>${esc(status)}</span></span>
+      <span class="who"><span class="name">${esc(a.name)}</span><span class="role">${esc(a.role)}</span><span class="status"><i class="dot ${esc(status)}"></i>${esc(status)}</span></span>
     </button>`;
   }).join("");
   $("tokendot").className = "dot" + (state.token ? " saved" : "");
@@ -363,6 +396,13 @@ function renderAgents() {
 
 function meta(name, ms) {
   return `<div class="meta"><span class="name">${esc(name)}</span><span class="time">${esc(when(ms))}</span></div>`;
+}
+function humanBubble(text, ms) {
+  return `<article class="msg msg-human">${meta("Jacob", ms)}<div class="text">${esc(text)}</div></article>`;
+}
+function speaker(id, inner, ms) {
+  const who = agentById(id);
+  return `<article class="msg msg-speaker">${meta(who.name, ms)}<div class="text">${inner}</div></article>`;
 }
 function findingBody(task) {
   const result = parseMaybe(task.result) || {};
@@ -373,18 +413,61 @@ function findingBody(task) {
     parts.push(`<p class="evlabel">${esc(ev.operation || "observation")} · ${esc(ev.source || "")}</p>`);
     parts.push(`<pre class="excerpt">${esc(ev.excerpt)}</pre>`);
   }
-  if (!parts.length) parts.push(`<p class="lead">${esc(task.objective || "")}</p>`);
+  if (!parts.length) parts.push(`<p class="lead">${esc(task.objective || task.state || "")}</p>`);
   return parts.join("");
 }
-function speaker(id, inner, ms, focusId) {
-  const who = agentById(id);
-  const on = state.focus === (focusId || id) ? " is-focus" : "";
-  return `<article class="msg msg-speaker${on}">${meta(who.name, ms)}<div class="text">${inner}</div></article>`;
+function answerText(task) {
+  const result = parseMaybe(task.result) || {};
+  if (result.summary) return result.summary;
+  if (task.error_message) return task.error_message;
+  return task.state || "";
+}
+function sys(ev, task) {
+  const who = task ? agentById(task.assigned_to).name : (ev.actor || "hub");
+  return `<p class="sysline">${esc(SYSTEM[ev.type])} · ${esc(who)} · ${esc(when(ev.created_at_ms))}</p>`;
+}
+function threadBits(root, events, byId) {
+  const focus = state.focus;
+  const bits = [];
+  if (focus === "human-jacob") {
+    bits.push(humanBubble(root.objective, root.created_at_ms));
+    for (const ev of events) {
+      if (ev.task_id !== root.task_id || ev.type === "task.created") continue;
+      if (ev.type === "task.completed") bits.push(speaker("hermes-pc", `<p class="lead">${esc(answerText(root))}</p>`, ev.created_at_ms));
+      else if (SYSTEM[ev.type]) bits.push(sys(ev, root));
+    }
+    return bits;
+  }
+  if (focus === "hermes-pc") {
+    bits.push(humanBubble(root.objective, root.created_at_ms));
+    for (const ev of events) {
+      const task = byId[ev.task_id];
+      if (ev.type === "task.created" && task && task.parent_task_id) {
+        bits.push(speaker("hermes-pc", `<p class="lead">Delegated to Hermes-VM.</p><p class="lead">${esc(task.objective)}</p>`, ev.created_at_ms));
+      } else if (ev.type === "task.completed" && task && !task.parent_task_id) {
+        bits.push(speaker("hermes-pc", findingBody(task), ev.created_at_ms));
+      } else if (ev.task_id === root.task_id && SYSTEM[ev.type] && ev.type !== "task.created") {
+        bits.push(sys(ev, task || root));
+      }
+    }
+    return bits;
+  }
+  let saw = false;
+  for (const ev of events) {
+    const task = byId[ev.task_id];
+    if (!task || task.assigned_to !== "hermes-vm") continue;
+    saw = true;
+    if (ev.type === "task.created") bits.push(speaker("hermes-pc", `<p class="lead">${esc(task.objective)}</p>`, ev.created_at_ms));
+    else if (ev.type === "task.completed") bits.push(speaker("hermes-vm", findingBody(task), ev.created_at_ms));
+    else if (SYSTEM[ev.type]) bits.push(sys(ev, task));
+  }
+  if (!saw) bits.push(`<p class="sysline">Hermes-PC has not delegated to Hermes-VM.</p>`);
+  return bits;
 }
 function renderThread() {
   const root = currentRoot();
   const events = state.events;
-  const sig = [state.focus, state.selected, state.tab, events.map(e => e.event_id).join(","), state.tasks.map(t => t.task_id + ":" + t.state + ":" + (t.updated_at_ms || "")).join(",")].join("|");
+  const sig = [state.focus, state.selected, events.map(e => e.event_id).join(","), state.tasks.map(t => t.task_id + ":" + t.state + ":" + (t.updated_at_ms || "")).join(",")].join("|");
   $("focus-pill").textContent = agentById(state.focus).name;
   $("statepill").textContent = root ? root.state : "idle";
   const terminal = root && ["completed", "failed", "cancelled", "timed_out"].indexOf(root.state) >= 0;
@@ -392,15 +475,16 @@ function renderThread() {
   $("cancel").title = !root ? "No investigation selected" : (terminal ? "This investigation has already finished" : "Cancel the selected investigation");
   const vm = state.focus === "hermes-vm";
   $("compose-note").hidden = !vm;
-  if (document.activeElement !== $("objective")) {
-    $("objective").placeholder = vm ? "Message still goes to Hermes-PC" : "Message Hermes-PC";
-  }
+  if (document.activeElement !== $("objective")) $("objective").placeholder = "Message Hermes-PC";
   if (sig === state.logSig) return;
+  const focusChanged = state.focus !== state.renderedFocus || state.selected !== state.renderedRoot;
   state.logSig = sig;
+  state.renderedFocus = state.focus;
+  state.renderedRoot = state.selected || "";
   const log = $("log");
   const scroll = log.scrollTop;
   if (!root) {
-    log.innerHTML = `<p class="sysline">No investigation yet. Ask Hermes-PC. Messages here are hub history.</p>`;
+    log.innerHTML = `<p class="sysline">No investigation yet. Ask Hermes-PC. This thread is hub history for ${esc(agentById(state.focus).name)}.</p>`;
     return;
   }
   const byId = {};
@@ -410,89 +494,69 @@ function renderThread() {
   if (list.length > 1) {
     bits.push(`<div class="roots">${list.map(t => `<button type="button" class="rootpick${t.task_id === state.selected ? " on" : ""}" data-root="${esc(t.task_id)}">${esc(t.objective.slice(0, 42))}</button>`).join("")}</div>`);
   }
-  let sawHuman = false;
-  for (const ev of events) {
-    const task = byId[ev.task_id];
-    const label = SYSTEM[ev.type];
-    if (ev.type === "task.created" && task && !task.parent_task_id) {
-      sawHuman = true;
-      const on = state.focus === "human-jacob" ? " is-focus" : "";
-      bits.push(`<article class="msg msg-human${on}">${meta("Jacob", ev.created_at_ms)}<div class="text">${esc(task.objective)}</div></article>`);
-    } else if (ev.type === "task.created" && task && task.parent_task_id) {
-      bits.push(speaker("hermes-pc", `<p class="lead">Delegated to Hermes-VM.</p><p class="lead">${esc(task.objective)}</p>`, ev.created_at_ms, "hermes-pc"));
-    } else if (ev.type === "task.completed" && task) {
-      bits.push(speaker(task.assigned_to, findingBody(task), ev.created_at_ms));
-    } else if (label) {
-      const who = task ? agentById(task.assigned_to).name : (ev.actor || "hub");
-      bits.push(`<p class="sysline">${esc(label)} · ${esc(who)} · ${esc(when(ev.created_at_ms))}</p>`);
-    }
-  }
-  if (!sawHuman) {
-    bits.unshift(`<article class="msg msg-human">${meta("Jacob", root.created_at_ms)}<div class="text">${esc(root.objective)}</div></article>`);
-  }
-  if (root.state === "queued" || root.state === "running") {
-    bits.push(`<p class="sysline">Waiting on ${esc(agentById(root.assigned_to).name)}. A bridge has to claim this task.</p>`);
-  }
+  bits.push(threadBits(root, events, byId).join(""));
+  const waiting = state.focus === "hermes-vm"
+    ? state.tasks.find(t => t.assigned_to === "hermes-vm" && t.parent_task_id === root.task_id && (t.state === "queued" || t.state === "running"))
+    : ((root.state === "queued" || root.state === "running") ? root : null);
+  if (waiting) bits.push(`<p class="sysline">Waiting on ${esc(agentById(waiting.assigned_to).name)}. A bridge has to claim this task.</p>`);
   log.innerHTML = bits.join("");
-  log.scrollTop = scroll;
+  log.scrollTop = focusChanged ? 0 : scroll;
 }
 
-const SCREEN_OPS = [
-  ["listening_sockets", "Sockets"],
-  ["tcp_probe", "TCP probe"],
-  ["route_show", "Route"],
-  ["service_status", "Service"],
-  ["dns_lookup", "DNS"],
-  ["service_logs", "Logs"]
-];
-function machinePage() {
-  const agent = agentById(state.machine);
-  const all = evidenceFor(state.machine);
-  const summary = all.length ? all[0].summary : "";
-  const limits = all.length && Array.isArray(all[0].limitations) ? all[0].limitations.filter(Boolean) : [];
-  const byOp = {};
-  for (const card of all) {
-    if (card.ev.operation && !byOp[card.ev.operation]) byOp[card.ev.operation] = card;
+function machineWord(agentId) {
+  return (SLUG[agentId] || agentId);
+}
+function sheetFor(tab, agentId) {
+  const who = agentById(agentId);
+  if (!tab.cards.length) {
+    return `<div class="sheet"><p class="kicker">${esc(who.name)} · ${esc(tab.path)}</p><h2>${esc(tab.label)}</h2><p class="empty">No ${esc(tab.id.startsWith("ep:") ? tab.label : tab.id)} observation from ${esc(who.name)}.</p></div>`;
   }
-  const ops = tabOps(state.tab);
-  const rows = SCREEN_OPS.filter(row => !ops || ops.indexOf(row[0]) >= 0);
-  const body = `<div class="board">${rows.map(row => {
-    const card = byOp[row[0]];
-    if (!card) return `<article class="cell"><h3>${esc(row[1])}</h3><p class="none">No ${esc(row[0])} observation from ${esc(agent.name)}.</p></article>`;
-    return `<article class="cell has"><h3>${esc(row[1])} · ${esc(card.ev.operation)}</h3><p class="src">${esc(card.ev.source || agent.id)} · ${esc(card.ev.observed_at || card.task.state)} · ${esc(card.task.task_id)}</p><pre>${esc(card.ev.excerpt)}</pre></article>`;
-  }).join("")}</div>`;
-  const limit = limits.length ? `<p class="src">Limitations: ${esc(limits.join("; "))}</p>` : "";
-  return `<div class="sheet"><p class="kicker">Machine screen · sockets, tcp probe, route, service, dns, logs</p><h2>${esc(agent.name)}</h2>${summary ? `<p class="summary">${esc(summary)}</p>` : ""}${limit}${body}</div>`;
+  const blocks = tab.cards.map((card, i) => {
+    const stamp = card.ev.observed_at || when(card.task.updated_at_ms);
+    const mark = i === 0 ? ' id="evidence-line"' : "";
+    return `<pre class="read"${mark}>${esc(card.ev.excerpt)}</pre><p class="attrib">source ${esc(card.ev.source || "")} · ${esc(stamp)} · machine ${esc(machineWord(agentId))}</p>`;
+  }).join("");
+  const op = tab.cards[0].ev.operation || tab.path;
+  return `<div class="sheet"><p class="kicker">${esc(who.name)} · ${esc(op)}</p><h2>${esc(tab.label)}</h2>${blocks}</div>`;
 }
 function pip() {
   const other = state.machine === "hermes-vm" ? "hermes-pc" : "hermes-vm";
   const cards = evidenceFor(other);
   const label = MACHINE[other] || other;
-  const body = cards.length
-    ? `<p class="op">${esc(cards[0].ev.operation || "evidence")}</p><pre>${esc(cards[0].ev.excerpt)}</pre>`
-    : `<p class="op">No evidence yet</p><pre>${esc(agentById(other).name)} has not reported.</pre>`;
-  return `<aside class="pip"><header><span>${esc(label)} computer</span><button type="button" data-take="${other}">Take control</button></header><div class="pip-body">${body}</div></aside>`;
+  const card = cards[0];
+  const line = card ? (String(card.ev.excerpt || "").split("\n").map(s => s.trim()).filter(Boolean)[0] || "No finding yet.") : "No finding yet.";
+  const op = card ? (card.ev.operation || "evidence") : "evidence";
+  return `<aside class="pip" id="pip"><header><span>${esc(label)} computer</span><button type="button" data-take="${other}">Take control</button></header><div class="pip-body"><p class="op">${esc(op)}</p><p class="pip-line" id="pip-line">${esc(line)}</p></div></aside>`;
 }
 function renderStage() {
   const machineName = MACHINE[state.machine] || "VM";
   $("stage-title").textContent = "WORKSPACE ON THE " + machineName;
-  const slug = machineName.toLowerCase();
-  const ops = tabOps(state.tab);
-  const path = state.tab === "screen" ? "screen" : (ops ? ops[0] : state.tab);
-  const tabs = TABS.map(t => `<button type="button" class="tab${t[0] === state.tab ? " on" : ""}" data-tab="${t[0]}">${t[1]}</button>`).join("");
-  $("browser").innerHTML = `<div class="tabbar"><div class="lights" aria-hidden="true"><i class="red"></i><i class="yellow"></i><i class="green"></i></div><div class="tabs">${tabs}</div></div>
-    <div class="omnibox"><div class="url"><span class="url-text">lab://${slug}/${esc(path)}</span><span class="url-status">hub evidence</span></div><button id="give" type="button">Give to agent</button></div>
-    <div class="page">${machinePage()}</div>${pip()}`;
+  const tabs = buildTabs(state.machine);
+  if (!tabs.some(t => t.id === state.tab)) {
+    const hit = tabs.find(t => t.cards.length && t.id.indexOf("ep:") !== 0) || tabs[0];
+    state.tab = hit ? hit.id : "listening_sockets";
+  }
+  const tab = tabs.find(t => t.id === state.tab) || tabs[0];
+  const path = tab ? tab.path : state.tab;
+  const tabBtns = tabs.map(t => `<button type="button" class="tab${t.id === state.tab ? " on" : ""}" data-tab="${esc(t.id)}">${esc(t.label)}</button>`).join("");
+  const armed = state.handoff ? " armed" : "";
+  $("browser").innerHTML = `<div class="tabbar"><div class="lights" aria-hidden="true"><i class="red"></i><i class="yellow"></i><i class="green"></i></div><div class="tabs">${tabBtns}</div></div>
+    <div class="omnibox"><div class="url"><span class="url-text">desk://${esc(machineWord(state.machine))}/${esc(path)}</span><span class="url-status">hub evidence</span></div><button id="give" class="${armed.trim()}" type="button">Give to agent</button></div>
+    <div class="page">${sheetFor(tab, state.machine)}</div>${pip()}`;
 }
 function renderHandoff() {
   const chip = $("handoff");
   if (!state.handoff) { chip.hidden = true; return; }
   chip.hidden = false;
   const n = state.handoff.evidence.length;
-  $("handoff-label").textContent = "Next send includes " + n + " visible observation" + (n === 1 ? "" : "s") + " from the " + (MACHINE[state.handoff.agent] || "machine") + ".";
+  const op = state.handoff.evidence[0] ? state.handoff.evidence[0].operation : "tab";
+  $("handoff-label").textContent = "Next send includes " + op + " (" + n + ") from the " + (MACHINE[state.handoff.agent] || "machine") + ".";
+}
+function directing() {
+  return !!(state.handoff || $("objective").value.trim());
 }
 function updateControl() {
-  const armed = $("objective").value.trim().length > 0;
+  const armed = directing();
   $("control").textContent = armed ? "You are directing" : "You are watching";
   $("control").className = armed ? "directing" : "";
   $("send").classList.toggle("armed", armed);
@@ -555,13 +619,25 @@ async function refresh() {
   }
 }
 
+function focusAgent(id) {
+  state.focus = id;
+  if (id === "hermes-pc" || id === "hermes-vm") {
+    state.machine = id;
+    const tabs = buildTabs(id);
+    const current = tabs.find(t => t.id === state.tab);
+    if (!current || !current.cards.length) {
+      const hit = tabs.find(t => t.cards.length && t.id.indexOf("ep:") !== 0) || tabs[0];
+      state.tab = hit ? hit.id : "listening_sockets";
+    }
+  }
+  state.logSig = "";
+  render();
+}
+
 $("roster").addEventListener("click", ev => {
   const btn = ev.target.closest(".member");
   if (!btn) return;
-  state.focus = btn.dataset.id;
-  if (btn.dataset.id === "hermes-pc" || btn.dataset.id === "hermes-vm") state.machine = btn.dataset.id;
-  state.logSig = "";
-  render();
+  focusAgent(btn.dataset.id);
 });
 $("log").addEventListener("click", ev => {
   const btn = ev.target.closest(".rootpick");
@@ -572,19 +648,14 @@ $("log").addEventListener("click", ev => {
 });
 $("browser").addEventListener("click", ev => {
   const tab = ev.target.closest("[data-tab]");
-  if (tab) { state.tab = tab.dataset.tab; renderStage(); return; }
+  if (tab) { state.tab = tab.dataset.tab; renderStage(); updateControl(); return; }
   const take = ev.target.closest("[data-take]");
-  if (take) {
-    state.focus = take.dataset.take;
-    state.machine = take.dataset.take;
-    state.logSig = "";
-    render();
-    return;
-  }
+  if (take) { focusAgent(take.dataset.take); return; }
   if (ev.target.closest("#give")) {
-    const cards = visibleCards();
+    const tab = activeTab();
+    const cards = tab && tab.cards ? tab.cards : [];
     if (!cards.length) {
-      $("threaderr").textContent = "This machine screen has no evidence to attach.";
+      $("threaderr").textContent = "This tab has no evidence to attach.";
       return;
     }
     state.handoff = {
@@ -595,10 +666,17 @@ $("browser").addEventListener("click", ev => {
     };
     $("threaderr").textContent = "";
     renderHandoff();
+    renderStage();
+    updateControl();
     $("objective").focus();
   }
 });
-$("handoff-clear").addEventListener("click", () => { state.handoff = null; renderHandoff(); });
+$("handoff-clear").addEventListener("click", () => {
+  state.handoff = null;
+  renderHandoff();
+  renderStage();
+  updateControl();
+});
 $("connect").addEventListener("click", () => {
   const typed = $("token").value.trim();
   if (typed) {

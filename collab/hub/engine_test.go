@@ -610,6 +610,7 @@ func TestDeskIsLocalShellWithoutSecrets(t *testing.T) {
 		"hermes-pc", "hermes-vm", "human-jacob", "WORKSPACE", "Lab",
 		"Give to agent", "Take control", "Diagnostic workspace, not a remote desktop.",
 		"sessionStorage", `profile: "pc-net"`, "timeout_sec: 180",
+		"desk://", "You are directing", "You are watching",
 	} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("desk missing %s", want)
