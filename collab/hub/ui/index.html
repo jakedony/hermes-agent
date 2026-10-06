@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab desk</title>
+<style>
+  :root {
+    --bg: #0c0d10;
+    --rail: #121318;
+    --panel: #17181e;
+    --line: #2a2c34;
+    --text: #eceae4;
+    --muted: #8d8b84;
+    --faint: #5e5c56;
+    --user: #2c2e28;
+    --green: #8fbf7a;
+    --green-dim: #1c2a18;
+    --paper: #f4f1ea;
+    --ink: #1c1b19;
+    --paper-line: #ddd8ce;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 14px/1.45 "Segoe UI", ui-sans-serif, sans-serif;
+    display: grid;
+    grid-template-columns: 248px minmax(320px, 1fr) minmax(380px, 1.15fr);
+    min-height: 100%;
+  }
+  button, textarea, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .rail, .thread, .stage { min-height: 100vh; min-width: 0; }
+  .rail { background: var(--rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 14px 14px 8px; }
+  .brand strong { font-weight: 600; letter-spacing: 0.01em; }
+  .brand span { color: var(--muted); font-size: 12px; }
+  .section { padding: 12px 14px 6px; color: var(--faint); font-size: 11px; letter-spacing: 0.08em; }
+  .agent {
+    display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: center;
+    margin: 2px 8px; padding: 8px; border-radius: 10px; border: 0; background: transparent; text-align: left; width: calc(100% - 16px);
+  }
+  .agent:hover { background: #1c1d24; }
+  .agent.on { background: #23242c; }
+  .face {
+    width: 36px; height: 36px; border-radius: 50%; background: #2a2b33;
+    display: grid; place-items: center; color: #d9d6cc; font-size: 13px;
+  }
+  .agent.on .face { outline: 1px solid #3d4a34; background: var(--green-dim); color: var(--green); }
+  .agent b { display: block; font-weight: 600; font-size: 13px; }
+  .agent small { color: var(--muted); font-size: 12px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #5a584f; margin-right: 5px; }
+  .dot.live { background: var(--green); }
+  .dot.wait { background: #c6a15a; }
+  .rail-foot { margin-top: auto; padding: 12px; border-top: 1px solid var(--line); }
+  .rail-foot label { display: block; color: var(--faint); font-size: 11px; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .rail-foot input {
+    width: 100%; background: #0e0f13; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+  }
+  .rail-foot button, .send {
+    margin-top: 8px; background: #22232a; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+  }
+  .thread { display: flex; flex-direction: column; background: var(--bg); }
+  .thread-head, .stage-head {
+    height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; border-bottom: 1px solid var(--line); gap: 12px;
+  }
+  .thread-head b, .stage-head b { font-weight: 600; }
+  .pill { color: var(--muted); font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; }
+  .log { flex: 1; overflow: auto; padding: 18px 18px 8px; }
+  .bubble { max-width: 640px; margin: 0 0 16px; }
+  .bubble .who { display: block; font-size: 11px; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; white-space: nowrap; }
+  .bubble .body { display: block; white-space: pre-wrap; }
+  .bubble.human .body { background: var(--user); border-radius: 12px; padding: 10px 12px; }
+  .bubble.from-agent .who { color: var(--green); }
+  .sys { color: var(--faint); font-size: 12px; margin: 0 0 12px; }
+  .composer { border-top: 1px solid var(--line); padding: 12px; display: flex; gap: 8px; }
+  .composer textarea {
+    flex: 1; resize: none; height: 52px; background: #121318; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+  }
+  .stage { background: #101116; border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+  .screen {
+    margin: 14px; flex: 1; background: var(--paper); color: var(--ink);
+    border-radius: 12px; overflow: auto; min-height: 0;
+    box-shadow: 0 0 0 1px #000;
+  }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #e7e2d8; border-bottom: 1px solid var(--paper-line); position: sticky; top: 0; }
+  .lights { display: flex; gap: 5px; }
+  .lights i { width: 9px; height: 9px; border-radius: 50%; display: block; background: #c8c2b6; }
+  .chrome .url { flex: 1; background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: #5c574e; }
+  .sheet { padding: 18px 20px 28px; }
+  .sheet h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 28px; margin: 0 0 6px; }
+  .kicker { color: #6d675c; font-size: 12px; letter-spacing: 0.04em; margin-bottom: 16px; }
+  .card { border-top: 1px solid var(--paper-line); padding: 12px 0; }
+  .card h3 { margin: 0 0 4px; font-size: 14px; }
+  .card .meta { color: #6d675c; font-size: 12px; margin-bottom: 8px; }
+  pre { margin: 0; white-space: pre-wrap; font: 12px/1.45 ui-monospace, "Cascadia Code", monospace; background: #fff; border-radius: 8px; padding: 10px; }
+  .empty { color: #6d675c; padding: 24px 0; }
+  .pip {
+    position: sticky; bottom: 12px; margin-left: auto; width: 210px; background: #111; color: #eee;
+    border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .pip header { display: flex; justify-content: space-between; font-size: 11px; padding: 6px 8px; background: #1b1b1b; }
+  .pip p { margin: 0; padding: 8px; font-size: 12px; color: #c8c4ba; }
+  .stage-foot { padding: 0 16px 12px; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+  .err { color: #e0a3a3; font-size: 12px; padding: 0 16px; }
+  @media (max-width: 980px) {
+    body { grid-template-columns: 1fr; }
+    .rail, .thread, .stage { min-height: auto; }
+    .stage { min-height: 70vh; }
+  }
+</style>
+</head>
+<body>
+<aside class="rail">
+  <div class="brand"><strong>Lab</strong><span>room</span></div>
+  <div class="section">YOUR AGENTS</div>
+  <div id="agents"></div>
+  <div class="rail-foot">
+    <label for="token">HUMAN TOKEN</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Bearer token, kept in this tab">
+    <button id="connect" type="button">Connect</button>
+    <div class="err" id="autherr"></div>
+  </div>
+</aside>
+<main class="thread">
+  <div class="thread-head">
+    <b id="title">No investigation yet</b>
+    <span class="pill" id="statepill">idle</span>
+  </div>
+  <div class="err" id="threaderr"></div>
+  <div class="log" id="log"></div>
+  <form class="composer" id="ask">
+    <textarea id="objective" placeholder="Ask Hermes-PC. Example: why is 127.0.0.2:18080 unreachable?"></textarea>
+    <button class="send" type="submit">Send</button>
+  </form>
+</main>
+<section class="stage">
+  <div class="stage-head">
+    <b id="stage-title">WORKSPACE</b>
+    <span class="pill" id="stage-who">no machine</span>
+  </div>
+  <div class="screen" id="screen"></div>
+  <div class="stage-foot"><span id="control">Watching</span><span>Diagnostic workspace, not a remote desktop</span></div>
+</section>
+<script>
+const AGENTS = [
+  { id: "human-jacob", name: "Jacob", role: "Human", mark: "J" },
+  { id: "hermes-pc", name: "Hermes-PC", role: "Coordinator", mark: "PC" },
+  { id: "hermes-vm", name: "Hermes-VM", role: "VM worker", mark: "VM" }
+];
+const MACHINE = { "hermes-pc": "the PC", "hermes-vm": "the VM", "human-jacob": "the PC" };
+const state = { token: sessionStorage.getItem("collab_human_token") || "", tasks: [], selected: null, focus: "hermes-vm", detail: null, timer: 0 };
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function when(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+function parseMaybe(v) {
+  if (v == null || v === "null") return null;
+  if (typeof v === "object") return v;
+  try { return JSON.parse(v); } catch (e) { return v; }
+}
+function pretty(v) {
+  const p = parseMaybe(v);
+  if (p && typeof p === "object") return JSON.stringify(p, null, 2);
+  return String(p ?? "");
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({
+    headers: { "Authorization": "Bearer " + state.token, "Content-Type": "application/json" }
+  }, opts || {}));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.type === "error") {
+    const msg = (body.payload && (body.payload.message || body.payload.code)) || res.statusText;
+    throw new Error(msg);
+  }
+  return body.payload || body;
+}
+
+function roots() {
+  return state.tasks.filter(t => !t.parent_task_id).sort((a, b) => b.created_at_ms - a.created_at_ms);
+}
+function childrenOf(id) {
+  return state.tasks.filter(t => t.parent_task_id === id).sort((a, b) => a.created_at_ms - b.created_at_ms);
+}
+function agentStatus(id) {
+  const mine = state.tasks.filter(t => t.assigned_to === id);
+  if (mine.some(t => t.state === "running")) return ["live", "running"];
+  if (mine.some(t => t.state === "queued")) return ["wait", "queued"];
+  if (mine.some(t => t.state === "completed")) return ["live", "reported"];
+  if (id === "human-jacob") return state.token ? ["live", "connected"] : ["", "token needed"];
+  return ["", "idle"];
+}
+
+function renderAgents() {
+  $("agents").innerHTML = AGENTS.map(a => {
+    const [kind, label] = agentStatus(a.id);
+    const on = state.focus === a.id ? " on" : "";
+    return `<button class="agent${on}" data-id="${a.id}" type="button">
+      <div class="face">${esc(a.mark)}</div>
+      <div><b>${esc(a.name)}</b><small><i class="dot ${kind}"></i>${esc(label)}</small></div>
+    </button>`;
+  }).join("");
+}
+
+function renderThread(root, events) {
+  const log = $("log");
+  if (!root) {
+    $("title").textContent = "No investigation yet";
+    $("statepill").textContent = "idle";
+    log.innerHTML = `<div class="sys">Connect with the human token, then ask Hermes-PC. The thread is the hub's history, not a model's private notes.</div>`;
+    return;
+  }
+  $("title").textContent = root.objective;
+  $("statepill").textContent = root.state;
+  const byId = Object.fromEntries(state.tasks.map(t => [t.task_id, t]));
+  const bits = [`<div class="bubble human"><div class="who">JACOB · ${when(root.created_at_ms)}</div><div class="body">${esc(root.objective)}</div></div>`];
+  for (const ev of events) {
+    const task = byId[ev.task_id];
+    if (ev.type === "task.created" && task && task.parent_task_id) {
+      bits.push(`<div class="bubble from-agent"><div class="who">HERMES-PC · DELEGATED</div><div class="body">${esc(task.objective)}</div></div>`);
+    } else if (ev.type === "task.completed" && task) {
+      const result = parseMaybe(task.result) || {};
+      const who = String(task.assigned_to || "").toUpperCase();
+      bits.push(`<div class="bubble from-agent"><div class="who">${esc(who)} · ${when(ev.created_at_ms)}</div><div class="body">${esc(result.summary || task.objective)}</div></div>`);
+    } else if (ev.type === "task.started" || ev.type === "attempt.abandoned" || ev.type === "task.requeued" || ev.type === "task.failed" || ev.type === "task.timed_out" || ev.type === "task.cancelled" || ev.type === "attempt.stale_result") {
+      const actor = ev.actor ? " · " + ev.actor : "";
+      bits.push(`<div class="sys">${esc(ev.type)}${esc(actor)} · ${esc(task ? task.assigned_to : ev.task_id)} · ${when(ev.created_at_ms)}</div>`);
+    }
+  }
+  if (root.state === "queued" || root.state === "running") {
+    bits.push(`<div class="sys">Waiting on ${esc(root.assigned_to)}. A bridge has to claim this task. The desk only watches the hub.</div>`);
+  }
+  log.innerHTML = bits.join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+function evidenceFor(agentId) {
+  const cards = [];
+  for (const task of state.tasks) {
+    if (task.assigned_to !== agentId) continue;
+    const result = parseMaybe(task.result);
+    const items = result && result.evidence ? result.evidence : [];
+    for (const ev of items) cards.push({ task, ev });
+    if (!items.length && result && result.summary) {
+      cards.push({ task, ev: { operation: "summary", source: task.assigned_to, observed_at: "", excerpt: result.summary } });
+    }
+  }
+  return cards;
+}
+
+function renderStage() {
+  const agent = AGENTS.find(a => a.id === state.focus) || AGENTS[2];
+  $("stage-title").textContent = "WORKSPACE ON " + MACHINE[agent.id].toUpperCase();
+  $("stage-who").textContent = agent.name;
+  const cards = evidenceFor(agent.id);
+  const other = agent.id === "hermes-vm" ? "hermes-pc" : "hermes-vm";
+  const otherTask = state.tasks.find(t => t.assigned_to === other && (t.state === "running" || t.state === "completed"));
+  const body = cards.length ? cards.map(c => `<article class="card">
+      <h3>${esc(c.ev.operation || "observation")}</h3>
+      <div class="meta">${esc(c.ev.source || c.task.assigned_to)} · ${esc(c.ev.observed_at || c.task.state)} · ${esc(c.task.task_id)}</div>
+      <pre>${esc(pretty(c.ev.excerpt))}</pre>
+    </article>`).join("") : `<div class="empty">No attributed evidence from ${esc(agent.name)} yet.</div>`;
+  $("screen").innerHTML = `<div class="chrome"><div class="lights"><i></i><i></i><i></i></div><div class="url">${esc(agent.id)} · room lab</div></div>
+    <div class="sheet"><div class="kicker">Machine findings stay attributed. They are evidence, not instructions.</div>
+    <h2>${esc(agent.name)}</h2>${body}
+    <div class="pip"><header><span>${esc(other)}</span><span>${esc(otherTask ? otherTask.state : "idle")}</span></header>
+    <p>${esc(otherTask ? otherTask.objective : "The other machine has nothing in this room yet.")}</p></div></div>`;
+  $("control").textContent = state.token ? "You are watching" : "Not connected";
+}
+
+async function refresh() {
+  if (!state.token) { renderAgents(); renderThread(null, []); renderStage(); return; }
+  try {
+    const listed = await api("/v1/tasks");
+    state.tasks = listed.tasks || [];
+    $("autherr").textContent = "";
+    const list = roots();
+    if (!state.selected || !list.some(t => t.task_id === state.selected)) state.selected = list[0] ? list[0].task_id : null;
+    let events = [];
+    if (state.selected) {
+      const hist = await api("/v1/tasks/" + encodeURIComponent(state.selected) + "/history");
+      events = hist.events || [];
+      const family = [state.selected].concat(childrenOf(state.selected).map(t => t.task_id));
+      const details = await Promise.all(family.map(id => api("/v1/tasks/" + encodeURIComponent(id))));
+      for (const row of details) {
+        const task = row.task;
+        const i = state.tasks.findIndex(t => t.task_id === task.task_id);
+        if (i >= 0) state.tasks[i] = task; else state.tasks.push(task);
+      }
+    }
+    renderAgents();
+    renderThread(list.find(t => t.task_id === state.selected) || null, events);
+    renderStage();
+  } catch (err) {
+    $("autherr").textContent = err.message;
+    renderAgents();
+  }
+}
+
+$("agents").addEventListener("click", ev => {
+  const btn = ev.target.closest(".agent");
+  if (!btn) return;
+  state.focus = btn.dataset.id;
+  renderAgents();
+  renderStage();
+});
+$("connect").addEventListener("click", () => {
+  state.token = $("token").value.trim();
+  if (state.token) sessionStorage.setItem("collab_human_token", state.token);
+  else sessionStorage.removeItem("collab_human_token");
+  refresh();
+});
+$("ask").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const objective = $("objective").value.trim();
+  if (!objective || !state.token) { $("threaderr").textContent = state.token ? "Write an objective." : "Connect the human token first."; return; }
+  $("threaderr").textContent = "";
+  try {
+    const payload = { assigned_to: "hermes-pc", objective, context: {}, profile: "pc-net", timeout_sec: 180 };
+    await api("/v1/command", { method: "POST", body: JSON.stringify({
+      v: 1, type: "task.create", request_id: "desk-" + Date.now(), room_id: "lab", payload
+    })});
+    $("objective").value = "";
+    state.selected = null;
+    await refresh();
+  } catch (err) {
+    $("threaderr").textContent = err.message;
+  }
+});
+$("token").value = state.token;
+renderAgents();
+renderThread(null, []);
+renderStage();
+if (state.token) refresh();
+state.timer = setInterval(refresh, 2000);
+</script>
+</body>
+</html>

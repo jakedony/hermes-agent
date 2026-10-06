@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -582,6 +583,36 @@ func TestOneRootAndChildBudget(t *testing.T) {
 	})
 	if over.Code != "budget" {
 		t.Fatalf("budget %s", over.Code)
+	}
+}
+
+func TestDeskIsLocalShellWithoutSecrets(t *testing.T) {
+	e, _ := newTest(t)
+	srv := httptest.NewServer(NewServer(e, nil).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Fatalf("content-type %s", ct)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(body)
+	for _, want := range []string{"hermes-pc", "hermes-vm", "human-jacob", "WORKSPACE"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("desk missing %s", want)
+		}
+	}
+	if strings.Contains(page, "human-secret") || strings.Contains(page, "pc-secret") {
+		t.Fatal("desk embedded a test token")
 	}
 }
 

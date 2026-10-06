@@ -12,6 +12,8 @@ The script prints this label and the coordinator synthesis:
 LABEL: local stub model, single host. This is not a second machine and not a hosted model.
 ```
 
+The hub also serves a desk at `http://127.0.0.1:8765/`. Paste the `human-jacob` token there. The left column is the agents, the middle column is the investigation the hub accepted, and the right column is the selected machine's evidence. The desk does not drive a remote desktop and it does not start a bridge.
+
 Both bridges dial the hub on one host. There is no SSH tunnel and no second kernel. `127.0.0.2` is only a different loopback address so the PC probe is not the VM's `127.0.0.1:18080` listener. A hosted model is not configured and is not contacted.
 
 Fake-agent tests (`worker_mode: fake`) are a separate path. They do not import Hermes. They still call the real diagnostic functions. `test_bridge_faults.py` drives the hub binary and both bridges: a killed worker is not rerun (a retry is a new attempt id, and an unsent fail resubmits the original request id), a VM socket drop does not requeue until the test clock passes the 30s lease, and cancel versus complete yields one outcome. Do not describe those runs, or this demo, as hosted-model collaboration or as a second machine.

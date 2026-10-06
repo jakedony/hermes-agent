@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/coder/websocket"
 )
+
+//go:embed ui/index.html
+var deskHTML []byte
 
 // Server exposes the engine over HTTP and WebSocket.
 type Server struct {
@@ -28,6 +32,7 @@ func NewServer(eng *Engine, log *slog.Logger) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", s.desk)
 	mux.HandleFunc("POST /v1/command", s.command)
 	mux.HandleFunc("GET /v1/tasks", s.listTasks)
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
@@ -79,6 +84,14 @@ func readAdvanceMS(w http.ResponseWriter, r *http.Request) (int64, bool) {
 		return 0, false
 	}
 	return body.AdvanceMS, true
+}
+
+func (s *Server) desk(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(deskHTML)
 }
 
 func (s *Server) command(w http.ResponseWriter, r *http.Request) {

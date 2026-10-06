@@ -22,6 +22,7 @@ This tree is a prototype. It does not modify Hermes core.
 | `PROTOCOL.md` | Wire contract the Python client implements. |
 | `DEPLOYMENT.md` | What to run on the PC and on the VM. |
 | `DEMO.md` | How to read the local demo. |
+| `hub/ui/index.html` | Loopback desk. Open the hub origin while the two-machine run is still waiting. |
 | `INTEGRATION.md` | How the worker calls Hermes, and what the prototype does not promise. |
 
 Run Python as:
@@ -55,6 +56,10 @@ PYTHONPATH=/workspace/collab/python python3 -m collab human --config ~/.config/c
 ```
 
 `203.0.113.10` stands for the VM's real address. It is not the SSH forward (`127.0.0.1:18765`), which only carries hub traffic.
+
+## Desk
+
+With the hub listening on `127.0.0.1:8765`, open `http://127.0.0.1:8765/`. Paste the `human-jacob` bearer token into the desk. It stays in this browser tab, not in the URL and not in the page source. The left column is the room's agents. The middle column is the investigation the hub has accepted. The right column is the selected machine's attributed evidence. The desk does not run a model and does not replace the bridges. A queued task sits there until a bridge claims it.
 
 ## Diagnostics
 
