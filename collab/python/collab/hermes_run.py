@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from collab.diagnostics import allowlist_from_pairs
+from collab.diagnostics import policy_from_start
 from collab.limits import MAX_ITERATIONS
 from collab.protocol_client import ProtocolClient
 from collab.result_shape import evidence_from_tool, normalize_limitations
@@ -62,14 +62,14 @@ def run_hermes(start: dict[str, Any], client: ProtocolClient) -> dict[str, Any]:
         return _fail("invalid_input", "hermes worker is missing model, base_url, api_key, or HERMES_HOME")
     os.environ["HERMES_HOME"] = str(home)
     prepare_hermes_home(home, model, base_url, api_key)
-    allowlist = allowlist_from_pairs(start.get("allowlist") or [])
     tool_timeout = float(start.get("tool_timeout_sec") or 10)
+    policy = policy_from_start(start, tool_timeout)
     max_iterations = int(start.get("max_iterations") or MAX_ITERATIONS)
     machine = str(start.get("machine_id") or "")
     evidence: list[dict[str, str]] = []
     limitations: list[str] = []
     try:
-        install_tools(role, allowlist, client, tool_timeout, delegate_timeout=150)
+        install_tools(role, policy, client, delegate_timeout=150)
     except (ImportError, OSError, RuntimeError, ValueError) as exc:
         log.warning("tool registration failed", exc_info=True)
         remove_tools()

@@ -23,6 +23,29 @@ type wallClock struct{}
 
 func (wallClock) Now() time.Time { return time.Now() }
 
+// offsetClock is wall time plus a test-only delta. Production uses wallClock.
+// POST /v1/test/advance moves it, and only when config manual_clock is set.
+type offsetClock struct {
+	mu    sync.Mutex
+	delta time.Duration
+}
+
+func newOffsetClock() *offsetClock {
+	return &offsetClock{}
+}
+
+func (c *offsetClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Now().Add(c.delta)
+}
+
+func (c *offsetClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	c.delta += d
+	c.mu.Unlock()
+}
+
 // Result is the acknowledgement of one command.
 type Result struct {
 	OK      bool

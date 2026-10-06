@@ -28,7 +28,9 @@ systemctl --user enable --now collab-hub.service collab-bridge.service
 sudo loginctl enable-linger "$USER"
 ```
 
-Linger lets the user units keep running without an interactive login. The hub and the bridge are unprivileged (`NoNewPrivileges=yes`). Diagnostics do not escalate when `ss` is missing or denied; they record the limitation.
+Linger lets the user units keep running without an interactive login. The hub and the bridge are unprivileged (`NoNewPrivileges=yes`). The sample human principal is `human-jacob`.
+
+Diagnostics do not escalate. Each one is a fixed executable and a fixed argv: `ss` for listeners, `/usr/bin/systemctl show` for an allowlisted unit, `/usr/bin/journalctl` for a bounded excerpt of that unit, `ip route show` for routes, and `/usr/bin/getent ahosts` for one allowlisted DNS name. `tcp_probe` dials only an allowlisted IP and port and refuses the hub forward (`127.0.0.1:18765` on the PC, `127.0.0.1:8765` on the VM). A journal the unprivileged user cannot read is an observation, not a sudo. Missing binaries are recorded the same way. Timeout is 10s. Output is capped. The child is resource-limited. `services` and `dns_names` in the bridge JSON are the allowlists; they are not secrets.
 
 Build the hub from this checkout (CGO sqlite):
 

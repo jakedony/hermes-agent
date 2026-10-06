@@ -3,7 +3,7 @@
   "room_id": "lab",
   "db_path": "/var/lib/collab/hub.db",
   "principals": {
-    "human-operator": {
+    "human-jacob": {
       "kind": "human",
       "token_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
     },

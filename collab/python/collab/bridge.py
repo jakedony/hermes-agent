@@ -81,6 +81,9 @@ class Bridge:
         self.deadline_mono = 0.0
         self.lease_reason = "crash"
         self.child_waiters: dict[str, asyncio.Event] = {}
+        # Tests set these. Production leaves them unset: flush is immediate and the session reconnects.
+        self.before_flush: Any = None
+        self.session_paused = False
         self._api_key = ""
         self._frame_task: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -148,6 +151,9 @@ class Bridge:
     async def _reconnect(self) -> None:
         backoff = Backoff()
         while not self.stopped.is_set():
+            if self.session_paused:
+                await asyncio.sleep(0.05)
+                continue
             self.helloed.clear()
             try:
                 await self._session()
@@ -266,6 +272,9 @@ class Bridge:
         raise HubDown(str(last))
 
     async def flush_outbox(self) -> None:
+        hook = self.before_flush
+        if hook is not None:
+            await hook(self)
         for item in self.journal.pending_outbox():
             try:
                 parsed = json.loads(item.payload_json)
@@ -397,6 +406,10 @@ class Bridge:
             "tool_timeout_sec": self.cfg.tool_timeout_sec,
             "max_iterations": self.cfg.max_iterations,
             "allowlist": [{"host": item.host, "port": item.port} for item in self.cfg.allowlist],
+            "services": list(self.cfg.services),
+            "dns_names": list(self.cfg.dns_names),
+            "hub_target": _hub_target(self.cfg.hub_ws),
+            "state_dir": self.cfg.state_dir,
             "grant": {
                 "attempt_id": body.get("attempt_id"),
                 "task_id": body.get("task_id"),
@@ -705,6 +718,15 @@ async def _read_async(reader: asyncio.StreamReader) -> dict[str, Any]:
 async def _write_async(writer: asyncio.StreamWriter, payload: dict[str, Any]) -> None:
     writer.write(encode_frame(payload))
     await writer.drain()
+
+
+def _hub_target(hub_ws: str) -> dict[str, Any] | None:
+    from collab.config import hub_endpoint
+
+    endpoint = hub_endpoint(hub_ws)
+    if endpoint is None:
+        return None
+    return {"host": endpoint[0], "port": endpoint[1]}
 
 
 def _wait_proc(proc: Any) -> None:

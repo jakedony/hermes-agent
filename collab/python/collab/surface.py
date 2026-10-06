@@ -11,7 +11,16 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from collab.diagnostics import dumps_result, listening_sockets, tcp_probe
+from collab.diagnostics import (
+    DiagPolicy,
+    dumps_result,
+    dns_lookup,
+    listening_sockets,
+    route_show,
+    service_logs,
+    service_status,
+    tcp_probe,
+)
 from collab.limits import COORDINATOR_TOOLS, TOOLSET_NAME, WORKER_TOOLS
 from collab.protocol import new_request_id
 from collab.protocol_client import ProtocolClient
@@ -42,41 +51,19 @@ def assert_surface(valid_names: Any, role: str) -> None:
 
 def install_tools(
     role: str,
-    allowlist: frozenset[tuple[str, int]],
+    policy: DiagPolicy,
     client: ProtocolClient,
-    tool_timeout: float,
     delegate_timeout: float,
 ) -> frozenset[str]:
     from tools.registry import registry
 
-    registry.register(
-        name="listening_sockets",
-        toolset=TOOLSET_NAME,
-        schema=_schema(
-            "listening_sockets",
-            "List listening TCP and UDP sockets with a fixed ss command. "
-            "An optional port is filtered in Python after capture. "
-            "Unprivileged: missing permissions are reported and not escalated.",
-            {"port": {"type": "integer", "minimum": 1, "maximum": 65535}},
-            required=[],
-        ),
-        handler=_listening_handler(tool_timeout),
-    )
-    registry.register(
-        name="tcp_probe",
-        toolset=TOOLSET_NAME,
-        schema=_schema(
-            "tcp_probe",
-            "Open one TCP connection to an allowlisted IP and port. "
-            "Hostnames, flags, and any address not on the allowlist are rejected.",
-            {
-                "host": {"type": "string"},
-                "port": {"type": "integer", "minimum": 1, "maximum": 65535},
-            },
-            required=["host", "port"],
-        ),
-        handler=_probe_handler(allowlist, tool_timeout),
-    )
+    for name, description, properties, required, handler in _local_tools(policy):
+        registry.register(
+            name=name,
+            toolset=TOOLSET_NAME,
+            schema=_schema(name, description, properties, required),
+            handler=handler,
+        )
     if role == "coordinator":
         registry.register(
             name="delegate_investigation",
@@ -101,7 +88,7 @@ def install_tools(
 def remove_tools() -> None:
     from tools.registry import registry
 
-    for name in ("listening_sockets", "tcp_probe", "delegate_investigation"):
+    for name in COORDINATOR_TOOLS:
         registry.deregister(name)
 
 
@@ -110,6 +97,63 @@ def _schema(name: str, description: str, properties: dict[str, Any], required: l
     if required:
         parameters["required"] = required
     return {"name": name, "description": description, "parameters": parameters}
+
+
+def _local_tools(policy: DiagPolicy) -> list[tuple[str, str, dict[str, Any], list[str], Callable]]:
+    timeout = policy.timeout_sec
+    port = {"type": "integer", "minimum": 1, "maximum": 65535}
+    unit = {"type": "string"}
+    return [
+        (
+            "listening_sockets",
+            "List listening TCP and UDP sockets with a fixed ss command. "
+            "An optional port is filtered in Python after capture. "
+            "Unprivileged: missing permissions are reported and not escalated.",
+            {"port": port},
+            [],
+            _listening_handler(timeout),
+        ),
+        (
+            "tcp_probe",
+            "Open one TCP connection to an allowlisted IP and port. "
+            "Hostnames, flags, the hub forward, and any address not on the allowlist are rejected.",
+            {"host": {"type": "string"}, "port": port},
+            ["host", "port"],
+            _probe_handler(policy),
+        ),
+        (
+            "service_status",
+            "Show a fixed set of systemctl properties for one allowlisted unit. "
+            "The unit is a single argv slot after -- and must match the service allowlist. "
+            "Do not expect privilege escalation.",
+            {"unit": unit},
+            ["unit"],
+            _status_handler(policy),
+        ),
+        (
+            "service_logs",
+            "Read a bounded journalctl excerpt for one allowlisted unit. "
+            "Line count and byte cap are fixed. A permission denial is an observation; privileges are not escalated.",
+            {"unit": unit},
+            ["unit"],
+            _logs_handler(policy),
+        ),
+        (
+            "route_show",
+            "Show the kernel routing table with a fixed ip route show vector. No caller arguments are passed to ip.",
+            {},
+            [],
+            _route_handler(timeout),
+        ),
+        (
+            "dns_lookup",
+            "Resolve one allowlisted DNS name with a fixed getent ahosts vector. "
+            "This is not an open resolver and does not scan.",
+            {"name": {"type": "string"}},
+            ["name"],
+            _dns_handler(policy),
+        ),
+    ]
 
 
 def _listening_handler(tool_timeout: float) -> Callable:
@@ -122,10 +166,49 @@ def _listening_handler(tool_timeout: float) -> Callable:
     return handler
 
 
-def _probe_handler(allowlist: frozenset[tuple[str, int]], tool_timeout: float) -> Callable:
+def _probe_handler(policy: DiagPolicy) -> Callable:
     def handler(args: dict[str, Any]) -> str:
         args = args if isinstance(args, dict) else {}
-        return dumps_result(tcp_probe(args.get("host"), args.get("port"), allowlist, timeout_sec=tool_timeout))
+        body = tcp_probe(
+            args.get("host"),
+            args.get("port"),
+            policy.probes,
+            timeout_sec=policy.timeout_sec,
+            forbidden=policy.forbidden(),
+        )
+        return dumps_result(body)
+
+    return handler
+
+
+def _status_handler(policy: DiagPolicy) -> Callable:
+    def handler(args: dict[str, Any]) -> str:
+        args = args if isinstance(args, dict) else {}
+        return dumps_result(service_status(args.get("unit"), policy.services, timeout_sec=policy.timeout_sec))
+
+    return handler
+
+
+def _logs_handler(policy: DiagPolicy) -> Callable:
+    def handler(args: dict[str, Any]) -> str:
+        args = args if isinstance(args, dict) else {}
+        return dumps_result(service_logs(args.get("unit"), policy.services, timeout_sec=policy.timeout_sec))
+
+    return handler
+
+
+def _route_handler(tool_timeout: float) -> Callable:
+    def handler(args: dict[str, Any]) -> str:
+        del args
+        return dumps_result(route_show(timeout_sec=tool_timeout))
+
+    return handler
+
+
+def _dns_handler(policy: DiagPolicy) -> Callable:
+    def handler(args: dict[str, Any]) -> str:
+        args = args if isinstance(args, dict) else {}
+        return dumps_result(dns_lookup(args.get("name"), policy.dns_names, timeout_sec=policy.timeout_sec))
 
     return handler
 

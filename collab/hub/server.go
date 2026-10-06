@@ -14,8 +14,9 @@ import (
 
 // Server exposes the engine over HTTP and WebSocket.
 type Server struct {
-	eng *Engine
-	log *slog.Logger
+	eng    *Engine
+	log    *slog.Logger
+	manual *offsetClock
 }
 
 func NewServer(eng *Engine, log *slog.Logger) *Server {
@@ -32,7 +33,52 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
 	mux.HandleFunc("GET /v1/tasks/{id}/history", s.taskHistory)
 	mux.HandleFunc("GET /ws", s.socket)
+	mux.HandleFunc("POST /v1/test/advance", s.advanceClock)
 	return mux
+}
+
+func (s *Server) advanceClock(w http.ResponseWriter, r *http.Request) {
+	if s.manual == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if _, ok := s.authorize(w, r); !ok {
+		return
+	}
+	ms, ok := readAdvanceMS(w, r)
+	if !ok {
+		return
+	}
+	s.manual.Advance(time.Duration(ms) * time.Millisecond)
+	events, err := s.eng.Sweep()
+	if err != nil {
+		s.log.Error("test clock sweep failed", "err", err)
+		writeTransport(w, http.StatusInternalServerError, "", "internal", "sweep failed")
+		return
+	}
+	s.eng.Publish(events)
+	raw, err := json.Marshal(map[string]any{"ok": true, "now_ms": s.eng.now()})
+	if err != nil {
+		writeTransport(w, http.StatusInternalServerError, "", "internal", "encode failed")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(raw)
+}
+
+func readAdvanceMS(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	var body struct {
+		AdvanceMS int64 `json:"advance_ms"`
+	}
+	if err := dec.Decode(&body); err != nil || body.AdvanceMS <= 0 || body.AdvanceMS > 3_600_000 {
+		writeTransport(w, http.StatusBadRequest, "", "bad_request", "advance_ms must be 1..3600000")
+		return 0, false
+	}
+	return body.AdvanceMS, true
 }
 
 func (s *Server) command(w http.ResponseWriter, r *http.Request) {

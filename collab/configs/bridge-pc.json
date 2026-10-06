@@ -18,6 +18,8 @@
   "allowlist": [
     {"host": "203.0.113.10", "port": 18080}
   ],
+  "services": ["collab-http.service"],
+  "dns_names": ["vm.example.test"],
   "human_socket": "/var/lib/collab/pc.sock",
   "human_socket_token_file": "/var/lib/collab/tokens/pc-socket.token",
   "human_hub_token_file": "/var/lib/collab/tokens/human.token"

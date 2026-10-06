@@ -36,8 +36,12 @@ Tools are registered on `tools.registry.registry` with toolset `collab_diag` bef
 
 | Role | Tools |
 | --- | --- |
-| coordinator (no parent) | `listening_sockets`, `tcp_probe`, `delegate_investigation` |
-| worker | `listening_sockets`, `tcp_probe` |
+| coordinator (no parent) | `listening_sockets`, `tcp_probe`, `service_status`, `service_logs`, `route_show`, `dns_lookup`, `delegate_investigation` |
+| worker | `listening_sockets`, `tcp_probe`, `service_status`, `service_logs`, `route_show`, `dns_lookup` |
+
+Enforcement is in the tool functions, not only in the prompt. `ss`, `systemctl`, `journalctl`, `ip`, and `getent` are fixed paths. Argument vectors are fixed. The only substituted slot is an allowlisted service token or DNS name that has already failed closed on a leading dash, whitespace, or a regex miss. Ports and addresses are checked before any socket. `tcp_probe` also rejects the hub websocket host and port so a PC probe cannot target the SSH forward. `service_logs` uses a fixed line cap (`40`) and byte cap. If journalctl exits with a permission error, the tool returns `ok: true` and a limitation, and the process does not escalate. Each call has a timeout (default 10s), an output cap, and rlimits applied in `collab.rlimit_exec` before `exec`. `shell=True` is not used.
+
+Sample allowlists live in `configs/bridge-pc.json` and `configs/bridge-vm.json` (`services`, `dns_names`, and the PC `allowlist` of `203.0.113.10:18080`). The sample human principal is `human-jacob`.
 
 The worker home's `config.yaml` sets `tools.tool_search.enabled` to `"off"` and `model.context_length` to `128000` (>= `MINIMUM_CONTEXT_LENGTH` 64000). The pin is kept only when `model.default` and `model.base_url` match the `model` and `base_url` passed to `AIAgent`.
 
@@ -47,7 +51,7 @@ The worker home's `config.yaml` sets `tools.tool_search.enabled` to `"off"` and 
 
 ## What this does not promise
 
-Fencing stops a stale attempt from completing on the hub. It does not stop a local observation that already happened. A retried attempt can run `ss` or a TCP connect again. There is no exactly-once shell.
+Fencing stops a stale attempt from completing on the hub. It does not stop a local observation that already happened. A retried attempt can run `ss`, a TCP connect, `systemctl`, `journalctl`, `ip`, or `getent` again. There is no exactly-once shell.
 
 Cancellation does not undo a completed action. A probe that already connected, or a child task that already finished, stays finished. The hub may still record `cancelled` if cancel wins the race before complete.
 

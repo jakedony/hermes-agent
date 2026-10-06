@@ -15,5 +15,7 @@
   "model": "REPLACE_WITH_MODEL_ID",
   "model_base_url": "http://127.0.0.1:9/v1",
   "api_key_file": "/var/lib/collab/tokens/model.key",
-  "allowlist": []
+  "allowlist": [],
+  "services": ["collab-http.service"],
+  "dns_names": ["vm.example.test"]
 }

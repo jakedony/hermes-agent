@@ -13,6 +13,8 @@ import threading
 import unittest
 from pathlib import Path
 
+_TMP_KEYS = ("TMPDIR", "TMP", "TEMP")
+
 sys.path.insert(0, "/workspace")
 
 from collab.frames import read_frame, write_frame
@@ -59,6 +61,8 @@ def _peer(sock: socket.socket, captured: list) -> None:
 class HermesStubTests(unittest.TestCase):
     def test_delegate_result_continues_the_same_conversation(self) -> None:
         previous = os.environ.get("HERMES_HOME")
+        saved_tmp = {key: os.environ.get(key) for key in _TMP_KEYS}
+        saved_tempdir = tempfile.tempdir
         parent, child = socket.socketpair()
         captured: list = []
         peer = threading.Thread(target=_peer, args=(parent, captured), daemon=True)
@@ -88,6 +92,12 @@ class HermesStubTests(unittest.TestCase):
                 os.environ.pop("HERMES_HOME", None)
             else:
                 os.environ["HERMES_HOME"] = previous
+            for key, value in saved_tmp.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            tempfile.tempdir = saved_tempdir
             child.close()
             parent.close()
         self.assertEqual(outcome.get("type"), "result", outcome)

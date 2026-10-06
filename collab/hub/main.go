@@ -28,8 +28,15 @@ func main() {
 	}
 	defer store.Close()
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	eng := NewEngine(store, cfg, nil)
+	var clock Clock
+	var manual *offsetClock
+	if cfg.ManualClock {
+		manual = newOffsetClock()
+		clock = manual
+	}
+	eng := NewEngine(store, cfg, clock)
 	srv := NewServer(eng, log)
+	srv.manual = manual
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	log.Info("listening", "addr", cfg.Listen, "room", cfg.RoomID)

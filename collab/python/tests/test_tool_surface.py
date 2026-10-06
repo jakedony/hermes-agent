@@ -12,8 +12,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+_TMP_KEYS = ("TMPDIR", "TMP", "TEMP")
+
 sys.path.insert(0, "/workspace")
 
+from collab.diagnostics import DiagPolicy
 from collab.hermes_run import prepare_hermes_home
 from collab.limits import COORDINATOR_TOOLS, WORKER_TOOLS
 from collab.surface import SurfaceError, assert_surface, install_tools, remove_tools
@@ -26,6 +29,8 @@ class ToolSurfaceTests(unittest.TestCase):
         import socket
 
         previous = os.environ.get("HERMES_HOME")
+        saved_tmp = {key: os.environ.get(key) for key in _TMP_KEYS}
+        saved_tempdir = tempfile.tempdir
         parent, child = socket.socketpair()
         client = ProtocolClient(child.makefile("rwb", buffering=0))
         try:
@@ -43,11 +48,27 @@ class ToolSurfaceTests(unittest.TestCase):
                 os.environ.pop("HERMES_HOME", None)
             else:
                 os.environ["HERMES_HOME"] = previous
+            for key, value in saved_tmp.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            tempfile.tempdir = saved_tempdir
 
     def _assert_role(self, role: str, approved: frozenset[str], client, server: FakeLLMServer) -> None:
         from run_agent import AIAgent
 
-        install_tools(role, frozenset({("127.0.0.1", 9)}), client, 10, 30)
+        install_tools(
+            role,
+            DiagPolicy(
+                probes=frozenset({("127.0.0.1", 9)}),
+                services=frozenset({"collab-http.service"}),
+                dns_names=frozenset({"vm.example.test"}),
+                hub_target=("127.0.0.1", 1),
+            ),
+            client,
+            30,
+        )
         agent = AIAgent(
             model=MODEL_ID,
             provider="custom",

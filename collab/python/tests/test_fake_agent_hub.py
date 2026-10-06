@@ -29,8 +29,6 @@ def _sha(token: str) -> str:
 
 def _hub_binary(cache: Path) -> Path | None:
     binary = cache / "collab-hub"
-    if binary.exists():
-        return binary
     build = subprocess.run(
         ["go", "build", "-o", str(binary), "./hub/"],
         cwd="/workspace/collab",
@@ -93,7 +91,7 @@ class FakeAgentHubTests(unittest.TestCase):
             "room_id": "lab",
             "db_path": str(root / "hub.db"),
             "principals": {
-                "human-operator": {"kind": "human", "token_sha256": _sha(tokens["human"])},
+                "human-jacob": {"kind": "human", "token_sha256": _sha(tokens["human"])},
                 "hermes-pc": {
                     "kind": "agent",
                     "machine_id": "pc",

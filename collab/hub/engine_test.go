@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -754,6 +755,95 @@ func TestStoreDurabilitySetup(t *testing.T) {
 	}
 	if err := e.store.db.QueryRow(`SELECT version FROM schema_migrations`).Scan(&ver); err != nil || ver != 1 {
 		t.Fatalf("schema_migrations %d %v", ver, err)
+	}
+}
+
+func TestLoadConfigKeepsProductionDefaults(t *testing.T) {
+	dir := t.TempDir()
+	body, err := json.Marshal(map[string]any{
+		"listen":  "127.0.0.1:9",
+		"room_id": "lab",
+		"db_path": filepath.Join(dir, "hub.db"),
+		"principals": map[string]any{
+			"human-jacob": map[string]any{"kind": "human", "token_sha256": hashToken("x")},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "hub.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ManualClock {
+		t.Fatal("manual clock defaults on")
+	}
+	if cfg.Limits.RootDeadlineSec != 180 || cfg.Limits.ChildDeadlineSec != 120 || cfg.Limits.LeaseSec != 30 || cfg.Limits.MaxAttempts != 2 || cfg.Limits.MaxChildTasks != 3 {
+		t.Fatalf("defaults changed: %+v", cfg.Limits)
+	}
+}
+
+func TestAdvanceEndpointAbsentWithoutManualClock(t *testing.T) {
+	e, _ := newTest(t)
+	srv := httptest.NewServer(NewServer(e, nil).Handler())
+	t.Cleanup(srv.Close)
+	res, err := http.Post(srv.URL+"/v1/test/advance", "application/json", strings.NewReader(`{"advance_ms":31000}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+}
+
+func TestManualClockAdvanceExpiresLease(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hub.db")
+	store, err := openStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	clock := newOffsetClock()
+	eng := NewEngine(store, testConfig(path), clock)
+	srv := NewServer(eng, nil)
+	srv.manual = clock
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+
+	id := createRoot(t, eng, "c-clock")
+	attempt := claim(t, eng, "hermes-pc", id, "claim-clock")
+	before := eng.call("human-jacob", "task.get", id, "g-before", map[string]any{})
+	if bodyMap(t, before)["task"].(map[string]any)["state"] != "running" {
+		t.Fatal(bodyMap(t, before)["task"])
+	}
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/v1/test/advance", strings.NewReader(`{"advance_ms":31000}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer human-secret")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("advance status %d", res.StatusCode)
+	}
+	got := eng.call("human-jacob", "task.get", id, "g-after", map[string]any{})
+	task := bodyMap(t, got)["task"].(map[string]any)
+	if task["state"] != "queued" {
+		t.Fatalf("lease did not expire on the test clock: %v", task)
+	}
+	attempts := bodyMap(t, got)["attempts"].([]any)
+	if len(attempts) != 1 || attempts[0].(map[string]any)["attempt_id"] != attempt || attempts[0].(map[string]any)["state"] != "lost" {
+		t.Fatalf("attempt %+v", attempts)
 	}
 }
 

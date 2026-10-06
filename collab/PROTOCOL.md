@@ -80,6 +80,16 @@ The bridge encodes a new dict once (compact JSON, sorted keys) and stores that t
 
 A claim request id is unique per logical claim. Store it before the send. A lost ack retries that same id. After the hub requeues the task, the next claim uses a new id. `not_ready` is not sticky, so the same claim id is safe to send again once `retry_after_ms` has elapsed.
 
+Dropping an agent socket does not requeue a leased attempt. The sweeper abandons it only after `lease_expires_at`. A late `task.complete` for that attempt is `stale` and does not overwrite a cancel or a newer attempt. `task.cancel` and `task.complete` commit as one outcome.
+
+## Test clock
+
+`manual_clock` defaults to false. Production hubs use the wall clock and do not expose time control. When a test config sets `"manual_clock": true`, `POST /v1/test/advance` with `{"advance_ms": N}` (1..3600000) and a bearer token adds that delta and sweeps immediately. Without the flag the route is 404. Defaults stay root 180s, child 120s, lease 30s, max attempts 2, child budget 3.
+
+## Diagnostics
+
+Diagnostic tools are not hub commands. They run inside the worker. See `INTEGRATION.md`. The sample human principal is `human-jacob`.
+
 Default idempotency retention is 7 days (`idempotency_retention_sec` 604800).
 
 ## Client rules that are not exactly-once

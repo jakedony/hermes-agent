@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,13 @@ class ConfigError(Exception):
     pass
 
 
+# Service tokens and DNS names are allowlisted separately. The regex is the
+# option-injection gate; the allowlist is the scope gate.
+SERVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@:-]{0,127}$")
+_DNS_LABEL = r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+DNS_RE = re.compile(r"^(?=.{1,253}$)(?:" + _DNS_LABEL + r"\.)*" + _DNS_LABEL + r"$")
+
+
 @dataclass(frozen=True)
 class AllowTarget:
     host: str
@@ -43,6 +51,8 @@ class BridgeConfig:
     worker_mode: str
     peer_agent_id: str
     allowlist: tuple[AllowTarget, ...]
+    services: tuple[str, ...]
+    dns_names: tuple[str, ...]
     profile: str
     peer_profile: str
     hermes_home: str
@@ -116,6 +126,41 @@ def _parse_allowlist(raw: Any) -> tuple[AllowTarget, ...]:
     return tuple(targets)
 
 
+def _parse_token_list(raw: Any, key: str, pattern: re.Pattern[str]) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ConfigError(f"{key} must be a list of strings")
+    found: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if (
+            not isinstance(item, str)
+            or item.startswith("-")
+            or any(ch.isspace() for ch in item)
+            or pattern.fullmatch(item) is None
+        ):
+            raise ConfigError(f"{key} entries must be safe names, not options")
+        marker = item if key == "services" else item.casefold()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        found.append(item)
+    return tuple(found)
+
+
+def hub_endpoint(hub_ws: str) -> tuple[str, int] | None:
+    parsed = urlparse(hub_ws)
+    if not parsed.hostname or parsed.port is None:
+        return None
+    host = parsed.hostname
+    try:
+        host = str(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    return host, parsed.port
+
+
 def normalize_target(host: str, port: int) -> AllowTarget:
     if host.startswith("-") or any(ch.isspace() for ch in host) or "/" in host:
         raise ConfigError("allowlist host is not an IP address")
@@ -146,6 +191,10 @@ def load_config(path: str | Path) -> BridgeConfig:
     limits = data.get("limits") or {}
     if not isinstance(limits, dict):
         raise ConfigError("limits must be an object")
+    allowlist = _parse_allowlist(data.get("allowlist"))
+    endpoint = hub_endpoint(hub_ws)
+    if endpoint is not None and endpoint in {(item.host, item.port) for item in allowlist}:
+        raise ConfigError("allowlist must not include the hub websocket address")
     return BridgeConfig(
         agent_id=_require_str(data, "agent_id"),
         machine_id=_require_str(data, "machine_id"),
@@ -156,7 +205,9 @@ def load_config(path: str | Path) -> BridgeConfig:
         state_dir=_require_str(data, "state_dir"),
         worker_mode=mode,
         peer_agent_id=_require_str(data, "peer_agent_id"),
-        allowlist=_parse_allowlist(data.get("allowlist")),
+        allowlist=allowlist,
+        services=_parse_token_list(data.get("services"), "services", SERVICE_RE),
+        dns_names=_parse_token_list(data.get("dns_names"), "dns_names", DNS_RE),
         profile=_optional_str(data, "profile", "default"),
         peer_profile=_optional_str(data, "peer_profile", "vm-local"),
         hermes_home=_optional_str(data, "hermes_home"),

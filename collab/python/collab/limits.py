@@ -24,6 +24,11 @@ MAX_OBJECTIVE_BYTES = 2000
 MAX_CONTEXT_BYTES = 8000
 SS_OUTPUT_CAP = 32_000
 DIAG_OUTPUT_CAP = 16_000
+LOG_MAX_LINES = 40
+LOG_OUTPUT_CAP = 8_000
+ROUTE_OUTPUT_CAP = 16_000
+DNS_OUTPUT_CAP = 4_000
+DNS_ANSWER_CAP = 8
 
 RETRYABLE_FAIL_CLASSES = frozenset({"transient", "crash", "lease_lost"})
 FAIL_CLASSES = RETRYABLE_FAIL_CLASSES | frozenset(
@@ -31,7 +36,15 @@ FAIL_CLASSES = RETRYABLE_FAIL_CLASSES | frozenset(
 )
 TERMINAL_TASK_STATES = frozenset({"completed", "failed", "cancelled", "timed_out"})
 
-# Coordinator surface includes delegation. A worker never sees that tool.
-COORDINATOR_TOOLS = frozenset({"listening_sockets", "tcp_probe", "delegate_investigation"})
-WORKER_TOOLS = frozenset({"listening_sockets", "tcp_probe"})
+# Local diagnostics. The coordinator adds delegation. A worker never sees that tool.
+DIAG_TOOLS = frozenset({
+    "listening_sockets",
+    "tcp_probe",
+    "service_status",
+    "service_logs",
+    "route_show",
+    "dns_lookup",
+})
+COORDINATOR_TOOLS = DIAG_TOOLS | {"delegate_investigation"}
+WORKER_TOOLS = DIAG_TOOLS
 TOOLSET_NAME = "collab_diag"

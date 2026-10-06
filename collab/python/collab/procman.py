@@ -11,6 +11,7 @@ import json
 import os
 import signal
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,7 +33,7 @@ def child_env(hermes_home: str, pythonpath: str, protocol_fd: int) -> dict[str, 
     """Explicit child environment. The parent environment is not copied."""
     return {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": os.environ.get("HOME", "/tmp"),
+        "HOME": os.environ.get("HOME") or tempfile.gettempdir(),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
         "HERMES_HOME": hermes_home,
         "PYTHONPATH": pythonpath,

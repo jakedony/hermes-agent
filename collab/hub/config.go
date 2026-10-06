@@ -41,11 +41,12 @@ type Principal struct {
 
 // Config is static server configuration. Tokens are hashes, never the secrets.
 type Config struct {
-	Listen     string               `json:"listen"`
-	RoomID     string               `json:"room_id"`
-	DBPath     string               `json:"db_path"`
-	Principals map[string]Principal `json:"principals"`
-	Limits     Limits               `json:"limits"`
+	Listen      string               `json:"listen"`
+	RoomID      string               `json:"room_id"`
+	DBPath      string               `json:"db_path"`
+	Principals  map[string]Principal `json:"principals"`
+	Limits      Limits               `json:"limits"`
+	ManualClock bool                 `json:"manual_clock"`
 }
 
 func applyDefaults(c *Config) {

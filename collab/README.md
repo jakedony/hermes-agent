@@ -4,7 +4,8 @@ A VM runs the hub. A PC and the VM each run a bridge. The PC is the coordinator:
 it can probe an allowlisted address and can delegate one child task to the VM.
 The VM worker only has local diagnostics. Hermes, when used, runs inside a
 worker subprocess with a fixed tool surface. The hub is the authority for
-tasks, leases, and idempotency.
+tasks, leases, and idempotency. The human principal in the sample hub config
+is `human-jacob`. The agent principals are `hermes-pc` and `hermes-vm`.
 
 This tree is a prototype. It does not modify Hermes core.
 
@@ -54,3 +55,17 @@ PYTHONPATH=/workspace/collab/python python3 -m collab human --config ~/.config/c
 ```
 
 `203.0.113.10` stands for the VM's real address. It is not the SSH forward (`127.0.0.1:18765`), which only carries hub traffic.
+
+## Diagnostics
+
+Both roles can call `listening_sockets`, `tcp_probe`, `service_status`, `service_logs`, `route_show`, and `dns_lookup`. The coordinator also has `delegate_investigation`. The worker does not. Each operation uses a fixed executable and a fixed argument vector, an allowlist, a 10s timeout, an output cap, and resource limits. A model string never becomes a shell word. `tcp_probe` refuses the hub websocket address even if someone puts that forward on the allowlist. Service and DNS names must match a token regex and the machine allowlist. `service_logs` records a permission denial as an observation and does not use sudo.
+
+`tools.tool_search.enabled` is `off` in the worker home. After `AIAgent` init, `valid_tool_names` must equal that role's approved set or the worker refuses the attempt.
+
+## Tests
+
+`go test ./hub/ -count=1` covers the hub, including the test-only clock. `collab/python/tests/` covers diagnostics, the Hermes stub model, the fake-agent hub flow, and bridge faults (worker crash, VM disconnect until lease expiry, cancel racing complete). Fake-agent runs and the stub model are not a second machine and not a hosted model.
+
+## What this does not promise
+
+There is no exactly-once shell. Cancellation does not roll back a probe that already ran. A crashed coordinator does not resume in-flight reasoning. Fencing does not stop a repeated local observation during a partition. `max_iterations` is not a token cap.

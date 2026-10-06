@@ -58,8 +58,15 @@ def respond(record: dict) -> Text | ToolCall:
             )
         combined = "\n".join(str(msg.get("content") or "") for msg in tool_msgs)
         return Text("STUB SYNTHESIS\n" + combined)
-    if len(tool_msgs) == 0:
-        return ToolCall("listening_sockets", {"port": 18080})
+    steps = (
+        lambda: ToolCall("listening_sockets", {"port": 18080}),
+        lambda: ToolCall("route_show", {}),
+        lambda: ToolCall("service_status", {"unit": "collab-http.service"}),
+        lambda: ToolCall("service_logs", {"unit": "collab-http.service"}),
+        lambda: ToolCall("dns_lookup", {"name": "vm.example.test"}),
+    )
+    if len(tool_msgs) < len(steps):
+        return steps[len(tool_msgs)]()
     return Text(str(tool_msgs[-1].get("content") or ""))
 
 
@@ -152,7 +159,7 @@ def _write_tokens(root: Path) -> None:
 
 def _write_configs(root: Path, hub_port: int, base_url: str) -> None:
     principals = {
-        "human-operator": {"kind": "human", "token_sha256": _sha("demo-human")},
+        "human-jacob": {"kind": "human", "token_sha256": _sha("demo-human")},
         "hermes-pc": {"kind": "agent", "machine_id": "pc", "capabilities": ["pc-network"], "token_sha256": _sha("demo-pc")},
         "hermes-vm": {"kind": "agent", "machine_id": "vm", "capabilities": ["vm-local"], "token_sha256": _sha("demo-vm")},
     }
@@ -179,6 +186,8 @@ def _write_configs(root: Path, hub_port: int, base_url: str) -> None:
         "peer_profile": "vm-local",
         "hermes_home": str(root / "pc-hermes"),
         "allowlist": [{"host": "127.0.0.2", "port": 18080}],
+        "services": ["collab-http.service"],
+        "dns_names": ["vm.example.test"],
         "human_socket": str(root / "pc.sock"),
         "human_socket_token_file": str(root / "socket.token"),
         "human_hub_token_file": str(root / "human.token"),
@@ -195,6 +204,8 @@ def _write_configs(root: Path, hub_port: int, base_url: str) -> None:
         "peer_profile": "pc-net",
         "hermes_home": str(root / "vm-hermes"),
         "allowlist": [],
+        "services": ["collab-http.service"],
+        "dns_names": ["vm.example.test"],
     }
     (root / "pc.json").write_text(json.dumps(pc), encoding="utf-8")
     (root / "vm.json").write_text(json.dumps(vm), encoding="utf-8")
@@ -218,7 +229,7 @@ def _popen(argv: list[str], log_path: Path) -> subprocess.Popen:
     log = open(log_path, "w", encoding="utf-8")
     env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": os.environ.get("HOME", "/tmp"),
+        "HOME": os.environ.get("HOME") or tempfile.gettempdir(),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
         "PYTHONPATH": "/workspace/collab/python:/workspace",
     }
