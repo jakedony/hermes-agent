@@ -22,7 +22,7 @@ This tree is a prototype. It does not modify Hermes core.
 | `PROTOCOL.md` | Wire contract the Python client implements. |
 | `DEPLOYMENT.md` | What to run on the PC and on the VM. |
 | `DEMO.md` | How to read the local demo. |
-| `hub/ui/index.html` | Loopback desk. Open the hub origin while the two-machine run is still waiting. |
+| `hub/ui/index.html` | Loopback lab desk: roster, hub thread, and a machine workspace. |
 | `INTEGRATION.md` | How the worker calls Hermes, and what the prototype does not promise. |
 
 Run Python as:
@@ -59,7 +59,15 @@ PYTHONPATH=/workspace/collab/python python3 -m collab human --config ~/.config/c
 
 ## Desk
 
-With the hub listening on `127.0.0.1:8765`, open `http://127.0.0.1:8765/`. Paste the `human-jacob` bearer token into the desk. It stays in this browser tab, not in the URL and not in the page source. The left column is the room's agents. The middle column is the investigation the hub has accepted. The right column is the selected machine's attributed evidence. The desk does not run a model and does not replace the bridges. A queued task sits there until a bridge claims it.
+With the hub listening on `127.0.0.1:8765`, open `http://127.0.0.1:8765/`. `GET /` is the unauthenticated page. Data calls send `Authorization: Bearer`. Paste the `human-jacob` token into Settings. The desk stores it in `sessionStorage` for this tab only. It is not written into the URL, the HTML, or a hub log line.
+
+The desk is three panes on a dark shell:
+
+- **Left rail.** Room name Lab. Roster of `human-jacob`, `hermes-pc`, and `hermes-vm`, each with its own mark, a role, and a live status taken from hub tasks: running, queued, reported, or idle. Selecting an agent focuses the thread on that speaker. Selecting Hermes-PC or Hermes-VM also switches the workspace machine. Settings at the bottom hold the token.
+- **Center thread.** The human question, Hermes-PC's delegation, Hermes-VM's findings, and Hermes-PC's synthesis are separate messages with names and times, from `task.list`, `task.get`, and `task.history`. System lines record started, requeued, abandoned, cancelled, stale, and timed out. The composer creates a root task assigned to `hermes-pc` with profile `pc-net` and timeout 180. If the focused agent is Hermes-VM, the composer says that only the coordinator delegates; Send still creates that human root for Hermes-PC. Cancel applies to the selected root while it is queued or running.
+- **Right workspace.** Titled `WORKSPACE ON THE PC` or `WORKSPACE ON THE VM`. Browser chrome (traffic lights, tabs, an address line) frames that machine's attributed evidence: sockets, tcp probe, route, service, dns, and logs. Give to agent attaches the visible evidence as bounded JSON on the next `task.create` context. A picture-in-picture of the other machine has Take control, which switches focus. The footer says "You are watching", or "You are directing" when the composer has text ready to send, and "Diagnostic workspace, not a remote desktop."
+
+The desk does not run a model, does not start a bridge, and does not open a remote desktop. A queued task stays queued until a bridge claims it. There is still no second machine, no SSH between two hosts, no hosted model, and no live desktop of a Mac or a VPS.
 
 ## Diagnostics
 

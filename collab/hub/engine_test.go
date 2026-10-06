@@ -606,13 +606,20 @@ func TestDeskIsLocalShellWithoutSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := string(body)
-	for _, want := range []string{"hermes-pc", "hermes-vm", "human-jacob", "WORKSPACE"} {
+	for _, want := range []string{
+		"hermes-pc", "hermes-vm", "human-jacob", "WORKSPACE", "Lab",
+		"Give to agent", "Take control", "Diagnostic workspace, not a remote desktop.",
+		"sessionStorage", `profile: "pc-net"`, "timeout_sec: 180",
+	} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("desk missing %s", want)
 		}
 	}
-	if strings.Contains(page, "human-secret") || strings.Contains(page, "pc-secret") {
+	if strings.Contains(page, "human-secret") || strings.Contains(page, "pc-secret") || strings.Contains(page, "vm-secret") {
 		t.Fatal("desk embedded a test token")
+	}
+	if strings.Contains(page, `class="agent`) || strings.Contains(page, "class='agent") {
+		t.Fatal("desk reused class agent on a shared selector")
 	}
 }
 
