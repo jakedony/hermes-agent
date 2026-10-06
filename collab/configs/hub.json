@@ -1,0 +1,31 @@
+{
+  "listen": "127.0.0.1:8765",
+  "room_id": "lab",
+  "db_path": "/var/lib/collab/hub.db",
+  "principals": {
+    "human-operator": {
+      "kind": "human",
+      "token_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "hermes-pc": {
+      "kind": "agent",
+      "machine_id": "pc",
+      "capabilities": ["pc-network"],
+      "token_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "hermes-vm": {
+      "kind": "agent",
+      "machine_id": "vm",
+      "capabilities": ["vm-local"],
+      "token_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  },
+  "limits": {
+    "root_deadline_sec": 180,
+    "child_deadline_sec": 120,
+    "max_child_tasks": 3,
+    "max_attempts": 2,
+    "lease_sec": 30,
+    "idempotency_retention_sec": 604800
+  }
+}

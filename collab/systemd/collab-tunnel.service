@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH local forward for the collab hub only
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -N -T -L 127.0.0.1:18765:127.0.0.1:8765 -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o BatchMode=yes VM_SSH_ALIAS
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

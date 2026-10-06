@@ -1,0 +1,15 @@
+[Unit]
+Description=Hermes collab bridge
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/collab
+Environment=PYTHONPATH=/opt/hermes/collab/python:/opt/hermes
+ExecStart=/usr/bin/python3 -m collab bridge --config %h/.config/collab/bridge.json
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

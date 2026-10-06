@@ -1,0 +1,19 @@
+{
+  "agent_id": "hermes-vm",
+  "machine_id": "vm",
+  "room_id": "lab",
+  "hub_ws": "ws://127.0.0.1:8765/ws",
+  "token_file": "/var/lib/collab/tokens/vm.token",
+  "journal_path": "/var/lib/collab/vm-journal.db",
+  "state_dir": "/var/lib/collab/vm",
+  "worker_mode": "hermes",
+  "peer_agent_id": "hermes-pc",
+  "profile": "vm-local",
+  "peer_profile": "pc-net",
+  "hermes_home": "/var/lib/collab/vm-hermes",
+  "pythonpath": "/opt/hermes/collab/python:/opt/hermes",
+  "model": "REPLACE_WITH_MODEL_ID",
+  "model_base_url": "http://127.0.0.1:9/v1",
+  "api_key_file": "/var/lib/collab/tokens/model.key",
+  "allowlist": []
+}

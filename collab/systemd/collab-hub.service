@@ -1,0 +1,14 @@
+[Unit]
+Description=Hermes collab hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/collab-hub -config %h/.config/collab/hub.json
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target
