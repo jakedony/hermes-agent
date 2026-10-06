@@ -161,14 +161,18 @@
   .sheet { padding: 22px 24px 132px; }
   .kicker { margin: 0 0 8px; color: var(--paper-muted); font-size: 12px; letter-spacing: 0.03em; }
   .sheet h2 { margin: 0 0 8px; font-size: 32px; font-weight: 560; letter-spacing: -0.02em; }
-  .summary { margin: 0 0 16px; font-size: 15px; line-height: 1.4; }
-  .obs { border-top: 1px solid var(--paper-line); padding: 12px 0; }
-  .obs h3 { margin: 0 0 4px; font-size: 14px; }
-  .obs .src { margin: 0 0 8px; color: var(--paper-muted); font-size: 12px; }
-  .obs pre { background: #12150f; color: #dff6d2; padding: 12px 14px; border-radius: 8px; font-size: 16px; }
+  .summary { margin: 0 0 12px; font-size: 15px; line-height: 1.4; }
+  .sheet > .src { margin: 0 0 12px; color: var(--paper-muted); font-size: 12px; }
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cell { background: #fff; border: 1px solid var(--paper-line); border-radius: 10px; padding: 10px 12px; min-height: 88px; }
+  .cell.has { grid-column: 1 / -1; }
+  .cell h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--paper-muted); font-weight: 650; }
+  .cell .src { margin: 0 0 8px; color: var(--paper-muted); font-size: 12px; }
+  .cell pre { background: #12150f; color: #dff6d2; padding: 14px 16px; border-radius: 8px; font-size: 18px; }
+  .cell .none { margin: 8px 0 0; color: var(--paper-muted); font-size: 13px; }
   .empty { color: var(--paper-muted); margin: 12px 0; }
   .pip {
-    position: absolute; right: 14px; bottom: 14px; width: 280px; z-index: 2;
+    position: absolute; right: 14px; bottom: 14px; width: 390px; z-index: 2;
     background: #141414; color: #f2f0ea; border-radius: 10px; overflow: hidden;
     box-shadow: 0 10px 28px rgba(0,0,0,.35);
   }
@@ -433,19 +437,30 @@ function renderThread() {
   log.scrollTop = scroll;
 }
 
+const SCREEN_OPS = [
+  ["listening_sockets", "Sockets"],
+  ["tcp_probe", "TCP probe"],
+  ["route_show", "Route"],
+  ["service_status", "Service"],
+  ["dns_lookup", "DNS"],
+  ["service_logs", "Logs"]
+];
 function machinePage() {
   const agent = agentById(state.machine);
-  const cards = visibleCards();
   const all = evidenceFor(state.machine);
   const summary = all.length ? all[0].summary : "";
   const limits = all.length && Array.isArray(all[0].limitations) ? all[0].limitations.filter(Boolean) : [];
-  let body;
-  if (!cards.length) {
-    const which = state.tab === "screen" ? "evidence" : state.tab;
-    body = `<p class="empty">No ${esc(which)} from ${esc(agent.name)} yet.</p>`;
-  } else {
-    body = cards.map(c => `<article class="obs"><h3>${esc(c.ev.operation || "observation")}</h3><p class="src">${esc(c.ev.source || agent.id)} · ${esc(c.ev.observed_at || c.task.state)} · ${esc(c.task.task_id)}</p><pre>${esc(c.ev.excerpt)}</pre></article>`).join("");
+  const byOp = {};
+  for (const card of all) {
+    if (card.ev.operation && !byOp[card.ev.operation]) byOp[card.ev.operation] = card;
   }
+  const ops = tabOps(state.tab);
+  const rows = SCREEN_OPS.filter(row => !ops || ops.indexOf(row[0]) >= 0);
+  const body = `<div class="board">${rows.map(row => {
+    const card = byOp[row[0]];
+    if (!card) return `<article class="cell"><h3>${esc(row[1])}</h3><p class="none">No ${esc(row[0])} observation from ${esc(agent.name)}.</p></article>`;
+    return `<article class="cell has"><h3>${esc(row[1])} · ${esc(card.ev.operation)}</h3><p class="src">${esc(card.ev.source || agent.id)} · ${esc(card.ev.observed_at || card.task.state)} · ${esc(card.task.task_id)}</p><pre>${esc(card.ev.excerpt)}</pre></article>`;
+  }).join("")}</div>`;
   const limit = limits.length ? `<p class="src">Limitations: ${esc(limits.join("; "))}</p>` : "";
   return `<div class="sheet"><p class="kicker">Machine screen · sockets, tcp probe, route, service, dns, logs</p><h2>${esc(agent.name)}</h2>${summary ? `<p class="summary">${esc(summary)}</p>` : ""}${limit}${body}</div>`;
 }
